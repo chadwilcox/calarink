@@ -5,7 +5,8 @@ name: Publish
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    # Every 30 minutes, off the :00/:30 marks, which GitHub delays or drops most at busy times.
+    - cron: '17,47 * * * *'
   push:
     branches: [main]
   workflow_dispatch:
