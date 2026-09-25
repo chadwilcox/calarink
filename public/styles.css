@@ -66,11 +66,9 @@ a { color: var(--accent); }
 .top { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
 .top-inner { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
 h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
-.sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .brand-mark { flex: none; display: block; line-height: 0; border-radius: 10px; }
 .brand-mark img { display: block; width: 42px; height: 42px; }
-.brand-text { min-width: 0; }
 .wordmark { font-size: 24px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; }
 .wordmark span { color: var(--accent); }
 .top-actions { display: flex; align-items: center; gap: 8px; flex: none; }
@@ -79,7 +77,6 @@ h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
 @media (max-width: 520px) {
   .brand-mark img { width: 36px; height: 36px; }
   .wordmark { font-size: 21px; }
-  .sub { font-size: 12px; }
 }
 .btn {
   display: inline-flex; align-items: center; gap: 6px;

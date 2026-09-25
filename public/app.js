@@ -28,7 +28,6 @@ function saveState() {
 async function load(refresh = false) {
   const btn = $('#refresh');
   btn.disabled = true; btn.classList.add('spinning');
-  if (refresh) $('#updated').textContent = 'Pulling fresh schedules from every rink…';
   try {
     // Relative, so it works both from the local server and from a GitHub Pages subpath.
     const res = await fetch(`schedule.json${refresh ? '?refresh=1' : ''}`, { cache: 'no-store' });
@@ -39,7 +38,8 @@ async function load(refresh = false) {
     buildStaticControls();
     render();
   } catch (err) {
-    $('#updated').textContent = `Couldn't load schedules: ${err.message}.`;
+    // A failed background refresh keeps what's on screen; only say so if there's nothing to show.
+    if (!data) $('#agenda').innerHTML = `<div class="empty"><strong>Couldn't load schedules.</strong>${esc(err.message)}. Try reloading the page.</div>`;
   } finally {
     btn.disabled = false; btn.classList.remove('spinning');
   }
@@ -159,18 +159,10 @@ function render() {
   const inScope = data.sessions.filter(s => baseFilter(s, now, until));
   const visible = inScope.filter(s => !state.hiddenRinks.includes(s.rinkId));
 
-  renderUpdated();
   renderRinkList(inScope);
   renderSummary(visible);
   renderAgenda(visible, now);
   renderDirect();
-}
-
-function renderUpdated() {
-  const stamps = data.rinks.filter(r => r.status).map(r => r.status.fetchedAt);
-  const oldest = Math.min(...stamps);
-  const mins = Math.round((Date.now() - oldest) / 60000);
-  $('#updated').textContent = `${data.rinks.filter(r => r.live && inState(r)).length} rinks pulled live · data ${mins < 1 ? 'just now' : `${mins} min old`} · times shown in Eastern`;
 }
 
 function renderRinkList(inScope) {
@@ -290,5 +282,5 @@ addEventListener('resize', syncHeaderHeight);
 syncHeaderHeight();
 wireControls();
 load();
-setInterval(() => data && render(), 60 * 1000); // keep "On now" and ages current
+setInterval(() => data && render(), 60 * 1000); // keep "On now" and past sessions current
 setInterval(() => data?.static && load(), 10 * 60 * 1000); // published site: pick up the latest scheduled build
