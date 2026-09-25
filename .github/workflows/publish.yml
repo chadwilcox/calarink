@@ -1,0 +1,47 @@
+# Pulls every rink on a schedule and publishes the site to GitHub Pages.
+# GitHub may run scheduled jobs late at busy times, and pauses them after 60 days with no commits
+# to the repo (re-enable from the Actions tab).
+name: Publish
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Last run's per-rink data, so a rink that fails this time keeps its last good copy.
+      - uses: actions/cache@v4
+        with:
+          path: data
+          key: schedule-cache-${{ github.run_id }}
+          restore-keys: schedule-cache-
+      - run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
