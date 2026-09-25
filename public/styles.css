@@ -110,8 +110,6 @@ h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
 }
 .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .chip[aria-pressed="true"] { background: color-mix(in srgb, var(--c) 14%, var(--surface)); border-color: var(--c); }
-.check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-top: 6px; cursor: pointer; }
-.check input { accent-color: var(--accent); width: 16px; height: 16px; }
 
 .seg { display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .seg button { background: var(--surface); border: 0; border-right: 1px solid var(--border); padding: 6px 0; cursor: pointer; font-size: 13px; white-space: nowrap; min-width: 0; }

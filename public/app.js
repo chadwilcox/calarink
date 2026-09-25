@@ -1,5 +1,9 @@
 const DEFAULT_TZ = 'America/New_York';
 const PUBLIC_DEFAULT = ['public', 'stick-puck', 'shinny', 'freestyle'];
+// One more type button covers everything that isn't walk-in public ice: practices, games,
+// rentals, lessons, closures. Off by default.
+const TEAM = 'team';
+const ALL_TYPES = [...PUBLIC_DEFAULT, TEAM];
 const STORE_KEY = 'maine-rink-times:v1'; // pre-Calarink name, kept so returning visitors keep their filters
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -24,8 +28,14 @@ let pageBase = null; // site root that state pages hang off: '/' on calarink.com
 const state = loadState();
 
 function loadState() {
-  const base = { types: PUBLIC_DEFAULT, showAll: false, hideCancelled: true, days: 14, dow: [], usState: '', region: '', hiddenRinks: [] };
-  try { return { ...base, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }; } catch { return base; }
+  const base = { types: PUBLIC_DEFAULT, days: 14, dow: [], usState: '', region: '', hiddenRinks: [] };
+  try {
+    const { showAll, hideCancelled, ...saved } = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    const s = { ...base, ...saved };
+    // The old "Also show team / private ice" checkbox is now the Team / private type button.
+    if (showAll && !s.types.includes(TEAM)) s.types = [...s.types, TEAM];
+    return s;
+  } catch { return base; }
 }
 function saveState() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ }
@@ -88,15 +98,15 @@ function buildStaticControls() {
   $('#usState').innerHTML = data.states.map(s => `<option value="${esc(s.code)}" ${s.code === us.code ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
 
   const typeBox = $('#types');
-  typeBox.innerHTML = data.categories.filter(c => c.public).sort((a, b) => PUBLIC_DEFAULT.indexOf(a.id) - PUBLIC_DEFAULT.indexOf(b.id)).map(c =>
-    `<button class="chip" style="--c:var(--c-${c.id})" data-type="${c.id}" aria-pressed="${state.types.includes(c.id)}">${esc(c.label)}</button>`).join('');
+  const label = Object.fromEntries(data.categories.map(c => [c.id, c.label]));
+  const chips = [...PUBLIC_DEFAULT.map(id => ({ id, label: label[id], color: id })), { id: TEAM, label: label.other || 'Team / private ice', color: 'other' }];
+  typeBox.innerHTML = chips.map(c =>
+    `<button class="chip" style="--c:var(--c-${c.color})" data-type="${c.id}" aria-pressed="${state.types.includes(c.id)}">${esc(c.label)}</button>`).join('');
 
   const regions = [...new Set(data.rinks.filter(inState).map(r => r.region))].sort();
   $('#region').innerHTML = `<option value="">All of ${esc(us.name)}</option>` + regions.map(r => `<option ${r === state.region ? 'selected' : ''}>${esc(r)}</option>`).join('');
 
   $('#dow').innerHTML = DOW.map((d, i) => `<button data-dow="${i}" aria-pressed="${state.dow.includes(i)}" title="Only ${d}">${d[0]}</button>`).join('');
-  $('#showAll').checked = state.showAll;
-  $('#hideCancelled').checked = state.hideCancelled;
   for (const b of document.querySelectorAll('#range button')) b.setAttribute('aria-pressed', String(+b.dataset.days === state.days));
 }
 
@@ -121,8 +131,6 @@ function wireControls() {
     b.setAttribute('aria-pressed', String(state.dow.includes(d)));
     commit();
   });
-  $('#showAll').addEventListener('change', e => { state.showAll = e.target.checked; commit(); });
-  $('#hideCancelled').addEventListener('change', e => { state.hideCancelled = e.target.checked; commit(); });
   $('#region').addEventListener('change', e => { state.region = e.target.value; commit(); });
   $('#usState').addEventListener('change', e => { setUsState(e.target.value); buildStaticControls(); render(); });
   $('#rinkList').addEventListener('change', e => {
@@ -147,9 +155,9 @@ const inArea = r => inState(r) && (!state.region || r.region === state.region);
 function baseFilter(s, now, until) {
   const start = Date.parse(s.start), end = Date.parse(s.end);
   if (end < now - 30 * 60 * 1000 || start > until) return false;
-  const typeOk = state.types.includes(s.category) || (state.showAll && !['public', 'stick-puck', 'shinny', 'freestyle'].includes(s.category));
-  if (!typeOk) return false;
-  if (state.hideCancelled && s.cancelled) return false;
+  const type = PUBLIC_DEFAULT.includes(s.category) ? s.category : TEAM;
+  if (!state.types.includes(type)) return false;
+  if (s.cancelled) return false;
   if (state.dow.length && !state.dow.includes(DOW.indexOf(fmt.dow.format(new Date(start))))) return false;
   if (!inArea(rinkById(s.rinkId))) return false;
   return true;
@@ -221,6 +229,8 @@ function renderAgenda(visible, now) {
     byDay.get(k).push(s);
   }
   const catLabel = Object.fromEntries(data.categories.map(c => [c.id, c.label]));
+  // Each session's type label only earns its place once some types are switched off.
+  const showPills = !ALL_TYPES.every(t => state.types.includes(t));
   let html = '';
   for (const [key, list] of byDay) {
     const d = new Date(list[0].start);
@@ -241,7 +251,7 @@ function renderAgenda(visible, now) {
         <div class="time">${fmt.time.format(new Date(start))} – ${fmt.time.format(new Date(end))}<span class="dur">${dur}</span></div>
         <div>
           <div class="title">${esc(s.title)}</div>
-          <div class="meta"><span class="pill">${esc(catLabel[s.category] || s.category)}</span><span>${esc(rink.name)} · ${esc(rink.town)}</span>${flags}</div>
+          <div class="meta">${showPills ? `<span class="pill">${esc(catLabel[s.category] || s.category)}</span>` : ''}<span>${esc(rink.name)} · ${esc(rink.town)}</span>${flags}</div>
         </div>
         <div class="actions">
           <button class="iconbtn" data-ics="${esc(s.id)}" title="Add to my calendar (.ics)" aria-label="Add to calendar"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 16H5V9h14zm-8-9h2v3h3v2h-3v3h-2v-3H8v-2h3z"/></svg></button>

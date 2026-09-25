@@ -40,7 +40,7 @@ Rentals and lessons never show the renter's name: Finnly and DaySmart rentals ap
 
 The server caches each source for 30 minutes (in memory and in `data/cache.json`). The **Refresh** button forces a fresh pull. If a source fails, the app keeps showing its last good copy and flags the error.
 
-Sessions are sorted into categories by keywords in their titles ([src/categorize.js](src/categorize.js)). Team practices, games, and rentals are hidden by default; tick "Also show team / private ice" to see the whole arena schedule.
+Sessions are sorted into categories by keywords in their titles ([src/categorize.js](src/categorize.js)). Team practices, games, rentals, lessons and closures fall under the "Team / private ice" type button, which is off by default; switch it on to see the whole arena schedule. Cancelled sessions are always hidden. Each session shows its type label only when some types are switched off.
 
 ## States
 
