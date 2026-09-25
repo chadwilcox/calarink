@@ -32,8 +32,12 @@
   <main class="wrap layout">
     <aside class="filters" aria-label="Filters">
       <section>
-        <h2>Session type</h2>
-        <div id="types" class="chips"></div>
+        <h2 class="row-between">Session type <button class="linkbtn" id="typesReset" hidden>show all</button></h2>
+        <div id="typeSummary" class="type-summary"></div>
+        <button class="btn-outline" id="typesOpen" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3 5h18v2H3zm3 6h12v2H6zm4 6h4v2h-4z"/></svg>
+          <span>Filter</span>
+        </button>
       </section>
       <section>
         <h2>When</h2>
@@ -70,6 +74,19 @@
   <footer class="wrap foot muted">
     <strong>Calarink</strong> · Schedules are pulled from each rink's own website and change often. Confirm with the rink before you drive.
   </footer>
+
+  <dialog id="typeDialog" class="modal" aria-labelledby="typeDialogTitle">
+    <form method="dialog">
+      <h2 id="typeDialogTitle">Session types</h2>
+      <p class="muted">Show only the kinds of ice time you want.</p>
+      <div id="typeOptions" class="type-options"></div>
+      <div class="linkbtns modal-links"><button type="button" class="linkbtn" id="typesAllOn">select all</button><button type="button" class="linkbtn" id="typesAllOff">clear</button></div>
+      <div class="modal-actions">
+        <button value="cancel" class="btn-ghost">Cancel</button>
+        <button value="apply" class="btn" id="typesApply">Apply</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="app.js" type="module"></script>
 </body>

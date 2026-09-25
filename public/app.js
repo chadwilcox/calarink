@@ -1,9 +1,16 @@
 const DEFAULT_TZ = 'America/New_York';
 const PUBLIC_DEFAULT = ['public', 'stick-puck', 'shinny', 'freestyle'];
-// One more type button covers everything that isn't walk-in public ice: practices, games,
-// rentals, lessons, closures. Off by default.
+// One more type covers everything that isn't walk-in public ice: practices, games,
+// rentals, lessons, closures. Every type is shown until the visitor filters.
 const TEAM = 'team';
 const ALL_TYPES = [...PUBLIC_DEFAULT, TEAM];
+const TYPE_INFO = {
+  public: 'Open skating for anyone',
+  'stick-puck': 'Skate with a stick and puck, no games',
+  shinny: 'Drop-in pickup hockey',
+  freestyle: 'Ice for figure skaters',
+  [TEAM]: 'Practices, games, rentals, lessons and closures',
+};
 const STORE_KEY = 'maine-rink-times:v1'; // pre-Calarink name, kept so returning visitors keep their filters
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -28,12 +35,12 @@ let pageBase = null; // site root that state pages hang off: '/' on calarink.com
 const state = loadState();
 
 function loadState() {
-  const base = { types: PUBLIC_DEFAULT, days: 14, dow: [], usState: '', region: '', hiddenRinks: [] };
+  const base = { types: ALL_TYPES, typesChosen: false, days: 14, dow: [], usState: '', region: '', hiddenRinks: [] };
   try {
     const { showAll, hideCancelled, ...saved } = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
     const s = { ...base, ...saved };
-    // The old "Also show team / private ice" checkbox is now the Team / private type button.
-    if (showAll && !s.types.includes(TEAM)) s.types = [...s.types, TEAM];
+    // Types saved before the Filter pop-up were the old default, not a choice: start from all.
+    if (!s.typesChosen) s.types = ALL_TYPES;
     return s;
   } catch { return base; }
 }
@@ -97,11 +104,7 @@ function buildStaticControls() {
   document.title = `Calarink · ${us.name}`;
   $('#usState').innerHTML = data.states.map(s => `<option value="${esc(s.code)}" ${s.code === us.code ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
 
-  const typeBox = $('#types');
-  const label = Object.fromEntries(data.categories.map(c => [c.id, c.label]));
-  const chips = [...PUBLIC_DEFAULT.map(id => ({ id, label: label[id], color: id })), { id: TEAM, label: label.other || 'Team / private ice', color: 'other' }];
-  typeBox.innerHTML = chips.map(c =>
-    `<button class="chip" style="--c:var(--c-${c.color})" data-type="${c.id}" aria-pressed="${state.types.includes(c.id)}">${esc(c.label)}</button>`).join('');
+  renderTypeSummary();
 
   const regions = [...new Set(data.rinks.filter(inState).map(r => r.region))].sort();
   $('#region').innerHTML = `<option value="">All of ${esc(us.name)}</option>` + regions.map(r => `<option ${r === state.region ? 'selected' : ''}>${esc(r)}</option>`).join('');
@@ -110,14 +113,54 @@ function buildStaticControls() {
   for (const b of document.querySelectorAll('#range button')) b.setAttribute('aria-pressed', String(+b.dataset.days === state.days));
 }
 
+// ---------- session types: summary in the sidebar, choices in the Filter pop-up ----------
+function typeList() {
+  const label = Object.fromEntries(data.categories.map(c => [c.id, c.label]));
+  return ALL_TYPES.map(id => ({ id, label: id === TEAM ? label.other || 'Team / private ice' : label[id], color: id === TEAM ? 'other' : id }));
+}
+const typesFiltered = () => !ALL_TYPES.every(t => state.types.includes(t));
+
+function renderTypeSummary() {
+  const filtered = typesFiltered();
+  $('#typeSummary').innerHTML = filtered
+    ? `<div class="chips">${typeList().filter(t => state.types.includes(t.id)).map(t => `<span class="chip" style="--c:var(--c-${t.color})">${esc(t.label)}</span>`).join('')}</div>`
+    : '<p class="type-all">All session types</p>';
+  $('#typesOpen span').textContent = filtered ? 'Change' : 'Filter';
+  $('#typesReset').hidden = !filtered;
+}
+
+function openTypeDialog() {
+  $('#typeOptions').innerHTML = typeList().map(t => `
+    <label class="type-option" style="--c:var(--c-${t.color})">
+      <input type="checkbox" value="${t.id}" ${state.types.includes(t.id) ? 'checked' : ''}>
+      <span class="type-dot"></span>
+      <span><strong>${esc(t.label)}</strong><span class="muted">${esc(TYPE_INFO[t.id] || '')}</span></span>
+    </label>`).join('');
+  syncApply();
+  $('#typeDialog').returnValue = ''; // Esc closes without a value; don't reuse the last "apply"
+  $('#typeDialog').showModal();
+}
+const checkedTypes = () => [...document.querySelectorAll('#typeOptions input:checked')].map(i => i.value);
+function syncApply() { $('#typesApply').disabled = checkedTypes().length === 0; }
+
+function setTypes(types) {
+  state.types = ALL_TYPES.filter(t => types.includes(t));
+  state.typesChosen = true;
+  renderTypeSummary();
+  commit();
+}
+
 function wireControls() {
-  $('#types').addEventListener('click', e => {
-    const b = e.target.closest('[data-type]'); if (!b) return;
-    const t = b.dataset.type;
-    state.types = state.types.includes(t) ? state.types.filter(x => x !== t) : [...state.types, t];
-    b.setAttribute('aria-pressed', String(state.types.includes(t)));
-    commit();
+  $('#typesOpen').addEventListener('click', openTypeDialog);
+  $('#typesReset').addEventListener('click', () => setTypes(ALL_TYPES));
+  $('#typeOptions').addEventListener('change', syncApply);
+  $('#typesAllOn').addEventListener('click', () => { document.querySelectorAll('#typeOptions input').forEach(i => { i.checked = true; }); syncApply(); });
+  $('#typesAllOff').addEventListener('click', () => { document.querySelectorAll('#typeOptions input').forEach(i => { i.checked = false; }); syncApply(); });
+  $('#typeDialog').addEventListener('close', () => {
+    if ($('#typeDialog').returnValue === 'apply' && checkedTypes().length) setTypes(checkedTypes());
   });
+  // Clicking the dimmed backdrop closes the pop-up without applying.
+  $('#typeDialog').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close('cancel'); });
   $('#range').addEventListener('click', e => {
     const b = e.target.closest('[data-days]'); if (!b) return;
     state.days = +b.dataset.days;
@@ -235,8 +278,8 @@ function renderAgenda(visible, now) {
     byDay.get(k).push(s);
   }
   const catLabel = Object.fromEntries(data.categories.map(c => [c.id, c.label]));
-  // Each session's type label only earns its place once some types are switched off.
-  const showPills = !ALL_TYPES.every(t => state.types.includes(t));
+  // Each session's type label only shows once the visitor has filtered types.
+  const showPills = typesFiltered();
   let html = '';
   for (const [key, list] of byDay) {
     const d = new Date(list[0].start);
