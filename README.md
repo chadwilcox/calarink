@@ -19,6 +19,8 @@ Then open http://localhost:5178. The server listens on `127.0.0.1` only. Set `HO
 
 GitHub Pages serves the site at calarink.com; the domain is registered with Cloudflare, whose DNS points at GitHub (records set to DNS only). `.github/workflows/publish.yml` runs `npm run build` every 30 minutes, on every push to `main`, and on demand (Actions tab → Publish → Run workflow). The build pulls every rink once and writes `dist/`: the page, `schedule.json`, and a copy of the page for each state (`dist/maine/index.html`). The published page has no Refresh button; it re-reads `schedule.json` every 10 minutes.
 
+- **Visitor's state (Cloudflare Worker):** calarink.com is proxied through Cloudflare (orange cloud; SSL mode must not be Flexible or GitHub's HTTPS redirect loops). The Worker in [worker/](worker/) adds `<meta name="visitor-region" content="ME">` to each page from Cloudflare's own location data, so a first-time visitor opens their state. A state in the address or the visitor's last pick still wins. Deploy changes with `npx wrangler deploy` from `worker/` (needs `npx wrangler login`).
+- GitHub renews its HTTPS certificate for calarink.com through the Cloudflare proxy; the current one expires 2026-12-24. If the site ever shows a certificate error after that, check Settings → Pages in the repo.
 - A rink whose site fails keeps its last good copy (the workflow carries `data/` between runs). If every rink fails, the run stops and the old site stays up.
 - GitHub can start scheduled runs late when it's busy, and pauses them after 60 days with no commits. Re-enable from the Actions tab.
 

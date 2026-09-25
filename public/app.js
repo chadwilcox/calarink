@@ -53,7 +53,8 @@ async function load(refresh = false) {
 }
 
 // ---------- US state ----------
-// calarink.com/maine or ?state=maine opens that state; otherwise the last state used, else the first.
+// calarink.com/maine or ?state=maine opens that state; otherwise the last state used, then the
+// visitor's own state (added to the page by the Cloudflare Worker, see worker/), else the default.
 function findState(v) {
   v = String(v || '').toLowerCase();
   return v ? data.states.find(s => [s.slug, s.code, s.name].some(x => x.toLowerCase() === v)) : undefined;
@@ -65,7 +66,9 @@ function applyUrlState() {
   const m = /^(.*\/)([^/]+)\/?$/.exec(location.pathname);
   const fromPath = m && findState(m[2]);
   pageBase = fromPath ? m[1] : location.pathname.replace(/[^/]*$/, '');
-  const pick = findState(new URLSearchParams(location.search).get('state')) || fromPath || currentState();
+  const visitorRegion = document.querySelector('meta[name="visitor-region"]')?.content;
+  const pick = findState(new URLSearchParams(location.search).get('state')) || fromPath
+    || findState(state.usState) || findState(visitorRegion) || currentState();
   if (pick.code !== state.usState) setUsState(pick.code, { updateUrl: false });
 }
 
