@@ -1,4 +1,4 @@
-const TZ = 'America/New_York';
+const DEFAULT_TZ = 'America/New_York';
 const PUBLIC_DEFAULT = ['public', 'stick-puck', 'shinny', 'freestyle'];
 const STORE_KEY = 'maine-rink-times:v1'; // pre-Calarink name, kept so returning visitors keep their filters
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -6,11 +6,18 @@ const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const fmtTime = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', minute: '2-digit' });
-const fmtDayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
-const fmtDayHead = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'long', month: 'long', day: 'numeric' });
-const fmtStamp = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short', hour: 'numeric', minute: '2-digit' });
-const fmtDow = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
+// Times and days are shown in the chosen state's time zone (Minnesota is Central).
+function makeFormatters(tz) {
+  const f = (opts, locale = 'en-US') => new Intl.DateTimeFormat(locale, { timeZone: tz, ...opts });
+  return {
+    time: f({ hour: 'numeric', minute: '2-digit' }),
+    dayKey: f({ year: 'numeric', month: '2-digit', day: '2-digit' }, 'en-CA'),
+    dayHead: f({ weekday: 'long', month: 'long', day: 'numeric' }),
+    dow: f({ weekday: 'short' }),
+    parts: f({ hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+  };
+}
+let fmt = makeFormatters(DEFAULT_TZ);
 
 let data = null;
 let pageBase = null; // site root that state pages hang off: '/' on calarink.com
@@ -51,7 +58,7 @@ function findState(v) {
   v = String(v || '').toLowerCase();
   return v ? data.states.find(s => [s.slug, s.code, s.name].some(x => x.toLowerCase() === v)) : undefined;
 }
-function currentState() { return findState(state.usState) || data.states[0]; }
+function currentState() { return findState(state.usState) || data.states.find(s => s.default) || data.states[0]; }
 const inState = r => r.state === currentState().code;
 
 function applyUrlState() {
@@ -73,6 +80,7 @@ function setUsState(code, { updateUrl = true } = {}) {
 // ---------- controls ----------
 function buildStaticControls() {
   const us = currentState();
+  fmt = makeFormatters(us.tz || DEFAULT_TZ);
   document.title = `Calarink · ${us.name}`;
   $('#usState').innerHTML = data.states.map(s => `<option value="${esc(s.code)}" ${s.code === us.code ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
 
@@ -139,16 +147,18 @@ function baseFilter(s, now, until) {
   const typeOk = state.types.includes(s.category) || (state.showAll && !['public', 'stick-puck', 'shinny', 'freestyle'].includes(s.category));
   if (!typeOk) return false;
   if (state.hideCancelled && s.cancelled) return false;
-  if (state.dow.length && !state.dow.includes(DOW.indexOf(fmtDow.format(new Date(start))))) return false;
+  if (state.dow.length && !state.dow.includes(DOW.indexOf(fmt.dow.format(new Date(start))))) return false;
   if (!inArea(rinkById(s.rinkId))) return false;
   return true;
 }
 
 function windowEnd() {
-  // End of the Nth local day, counting today as day 1.
-  const now = new Date();
-  const [y, m, d] = fmtDayKey.format(now).split('-').map(Number);
-  return Date.UTC(y, m - 1, d + state.days, 5); // 05:00 UTC = local midnight (EST) / 1am (EDT)
+  // Midnight at the end of the Nth local day (today is day 1), in the state's time zone.
+  const [y, m, d] = fmt.dayKey.format(new Date()).split('-').map(Number);
+  const guess = Date.UTC(y, m - 1, d + state.days);
+  const p = Object.fromEntries(fmt.parts.formatToParts(new Date(guess)).map(x => [x.type, x.value]));
+  const offset = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - guess;
+  return guess - offset;
 }
 
 // ---------- render ----------
@@ -200,10 +210,10 @@ function renderAgenda(visible, now) {
     $('#agenda').innerHTML = `<div class="empty"><strong>No sessions match these filters.</strong>Try a longer date range, more session types, or all regions.</div>`;
     return;
   }
-  const todayKey = fmtDayKey.format(new Date());
+  const todayKey = fmt.dayKey.format(new Date());
   const byDay = new Map();
   for (const s of visible) {
-    const k = fmtDayKey.format(new Date(s.start));
+    const k = fmt.dayKey.format(new Date(s.start));
     if (!byDay.has(k)) byDay.set(k, []);
     byDay.get(k).push(s);
   }
@@ -211,7 +221,7 @@ function renderAgenda(visible, now) {
   let html = '';
   for (const [key, list] of byDay) {
     const d = new Date(list[0].start);
-    html += `<section class="day"><div class="day-head"><h3>${fmtDayHead.format(d)}</h3>${key === todayKey ? '<span class="today-tag">Today</span>' : ''}<span class="count">${list.length}</span></div><div class="sessions">`;
+    html += `<section class="day"><div class="day-head"><h3>${fmt.dayHead.format(d)}</h3>${key === todayKey ? '<span class="today-tag">Today</span>' : ''}<span class="count">${list.length}</span></div><div class="sessions">`;
     for (const s of list) {
       const start = Date.parse(s.start), end = Date.parse(s.end);
       const rink = rinkById(s.rinkId);
@@ -225,7 +235,7 @@ function renderAgenda(visible, now) {
         s.fromText && !s.recurring && '<span class="flag" title="Read from text on the rink\'s web page">From rink page</span>',
       ].filter(Boolean).join('');
       html += `<div class="session ${end < now ? 'past' : ''} ${s.cancelled ? 'cancelled' : ''}" style="--c:var(--c-${s.category})">
-        <div class="time">${fmtTime.format(new Date(start))} – ${fmtTime.format(new Date(end))}<span class="dur">${dur}</span></div>
+        <div class="time">${fmt.time.format(new Date(start))} – ${fmt.time.format(new Date(end))}<span class="dur">${dur}</span></div>
         <div>
           <div class="title">${esc(s.title)}</div>
           <div class="meta"><span class="pill">${esc(catLabel[s.category] || s.category)}</span><span>${esc(rink.name)} · ${esc(rink.town)}</span>${flags}</div>
@@ -245,7 +255,7 @@ function renderDirect() {
   const rinks = data.rinks.filter(r => !r.live && inArea(r));
   $('#directSection').hidden = !rinks.length;
   $('#direct').innerHTML = rinks.map(r => `<div class="card">
-    <h3>${esc(r.name)}</h3><div class="town">${esc(r.town)}${r.address ? ` · ${esc(r.address.replace(/, ME$/, ''))}` : ''}</div>
+    <h3>${esc(r.name)}</h3><div class="town">${esc(r.town)}${r.address ? ` · ${esc(r.address.replace(/, [A-Z]{2}$/, ''))}` : ''}</div>
     ${r.note ? `<p>${esc(r.note)}</p>` : ''}
     <div class="links">
       <a href="${esc(r.scheduleUrl || r.website)}" target="_blank" rel="noopener">Schedule / website ↗</a>
@@ -271,7 +281,7 @@ function downloadIcs(id) {
   ].join('\r\n');
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob([ics], { type: 'text/calendar' })),
-    download: `${rink.name} ${fmtDayKey.format(new Date(s.start))}.ics`.replace(/[^\w .-]/g, ''),
+    download: `${rink.name} ${fmt.dayKey.format(new Date(s.start))}.ics`.replace(/[^\w .-]/g, ''),
   });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);

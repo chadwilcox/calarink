@@ -3,12 +3,14 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { RINKS, STATES } from './rinks.js';
 import { categorize, isCancelled, CATEGORY_LIST } from './categorize.js';
-import { nyDate, nyToday, DAY_MS } from './time.js';
+import { zonedDate, zonedToday, DAY_MS, DEFAULT_TZ } from './time.js';
 import { fetchIcs } from './sources/ics.js';
 import { fetchFinnly } from './sources/finnly.js';
 import { fetchPageText } from './sources/pageText.js';
+import { fetchDaySmart } from './sources/daysmart.js';
 
-const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText };
+const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart };
+const TZ_BY_STATE = Object.fromEntries(STATES.map(s => [s.code, s.tz || DEFAULT_TZ]));
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const WINDOW_DAYS = 120;
 const CACHE_FILE = path.resolve('data', 'cache.json');
@@ -29,10 +31,27 @@ async function saveCache() {
   await fs.writeFile(CACHE_FILE, JSON.stringify(Object.fromEntries(cache)));
 }
 
-function windowRange() {
-  const t = nyToday();
-  const from = nyDate(t.y, t.m, t.d);
-  return { from, to: new Date(from.getTime() + WINDOW_DAYS * DAY_MS) };
+// Rinks often stamp the season on every session ("Public Skating Sept-Dec 2026 - Weekend",
+// "Open Skate Oct. 2026", "Hockey 101 Fall '26"); the date is already on the listing.
+const MON = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?';
+const YEAR = "(?:'\\d{2}|20\\d{2})\\b"; // '26 or 2026 — never a bare day number like "Oct. 12"
+const SEASON_RE = new RegExp(`\\s*\\b(?:${MON}\\s*[-–/]\\s*${MON}\\s*${YEAR}|${MON}\\s+${YEAR}|(?:fall|winter|spring|summer)\\s*${YEAR}(?:\\s*[-–/]\\s*${YEAR})?)`, 'gi');
+function tidyTitle(t) {
+  return String(t || '')
+    .replace(SEASON_RE, '')
+    .replace(/^(.+?)\s+\1$/i, '$1')          // "Open Skate Open Skate"
+    .replace(/\s*[-–—|]\s*$/, '')          // dangling separator left behind
+    .replace(/\s*[-–—]\s*[-–—]\s*/g, ' — ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+// From the start of today in the rink's time zone. `tz` goes to the adapters too, for
+// schedules that give local times with no zone.
+function windowRange(tz) {
+  const t = zonedToday(tz);
+  const from = zonedDate(tz, t.y, t.m, t.d);
+  return { from, to: new Date(from.getTime() + WINDOW_DAYS * DAY_MS), tz };
 }
 
 async function pullSource(rink, source, index, force) {
@@ -45,13 +64,13 @@ async function pullSource(rink, source, index, force) {
     const started = Date.now();
     let entry;
     try {
-      const raw = await ADAPTERS[source.type](source, windowRange());
+      const raw = await ADAPTERS[source.type](source, windowRange(TZ_BY_STATE[rink.state] || DEFAULT_TZ));
       const sessions = raw.map((s, i) => {
         const text = s.categoryText ?? `${s.title} ${s.description || ''}`;
         return {
           id: `${key}#${i}`,
           rinkId: rink.id,
-          title: s.title || 'Ice time',
+          title: tidyTitle(s.title) || 'Ice time',
           description: s.description || '',
           category: categorize(text),
           cancelled: isCancelled(`${s.title} ${s.description || ''}`),

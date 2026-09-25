@@ -4,7 +4,7 @@
 // Pages like this change wording often, so every session from here is flagged
 // `fromText` and the UI links back to the page.
 import { fetchText } from '../http.js';
-import { nyDate, nyToday } from '../time.js';
+import { zonedDate, zonedToday } from '../time.js';
 
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -39,8 +39,8 @@ function parseTimeRange(line) {
 }
 
 // Pick the year that puts month/day closest to today (schedules straddle New Year's).
-function inferYear(month, day) {
-  const t = nyToday();
+function inferYear(month, day, tz) {
+  const t = zonedToday(tz);
   const today = Date.UTC(t.y, t.m - 1, t.d);
   let best = t.y, bestDiff = Infinity;
   for (const y of [t.y - 1, t.y, t.y + 1]) {
@@ -50,7 +50,7 @@ function inferYear(month, day) {
   return best;
 }
 
-export async function fetchPageText(source, { from, to }) {
+export async function fetchPageText(source, { from, to, tz }) {
   const lines = htmlToLines(await fetchText(source.url));
   const out = [];
   const titleFor = line => (/youth/i.test(line) ? `${source.title} (Youth)` : /adult/i.test(line) ? `${source.title} (Adult)` : source.title);
@@ -67,9 +67,9 @@ export async function fetchPageText(source, { from, to }) {
     if (dm) {
       const month = MONTHS.findIndex(m => m.startsWith(dm[1].toLowerCase().slice(0, 3))) + 1;
       const day = +dm[2];
-      const year = inferYear(month, day);
-      const start = nyDate(year, month, day, tr.startH, tr.startM);
-      const end = nyDate(year, month, day, tr.endH, tr.endM);
+      const year = inferYear(month, day, tz);
+      const start = zonedDate(tz, year, month, day, tr.startH, tr.startM);
+      const end = zonedDate(tz, year, month, day, tr.endH, tr.endM);
       if (end >= from && start <= to) out.push({ title: titleFor(line), description: line, start, end, fromText: true });
       continue;
     }
@@ -77,14 +77,14 @@ export async function fetchPageText(source, { from, to }) {
     const wm = WEEKLY_RE.exec(line);
     if (wm && source.projectWeekly) {
       const days = DAYS.map((d, i) => (new RegExp(`\\b${d}s\\b`, 'i').test(wm[1]) ? i : -1)).filter(i => i >= 0);
-      const today = nyToday();
+      const today = zonedToday(tz);
       for (let i = 0; i < source.projectWeekly * 7; i++) {
         const cal = new Date(Date.UTC(today.y, today.m - 1, today.d + i));
         const ymd = [cal.getUTCFullYear(), cal.getUTCMonth() + 1, cal.getUTCDate()];
         if (!days.includes(cal.getUTCDay())) continue;
         if (allowedMonths && !allowedMonths.includes(ymd[1])) continue;
-        const start = nyDate(ymd[0], ymd[1], ymd[2], tr.startH, tr.startM);
-        const end = nyDate(ymd[0], ymd[1], ymd[2], tr.endH, tr.endM);
+        const start = zonedDate(tz, ymd[0], ymd[1], ymd[2], tr.startH, tr.startM);
+        const end = zonedDate(tz, ymd[0], ymd[1], ymd[2], tr.endH, tr.endM);
         if (end >= from && start <= to) out.push({ title: titleFor(line), description: `Weekly: ${line}`, start, end, fromText: true, recurring: true });
       }
     }
