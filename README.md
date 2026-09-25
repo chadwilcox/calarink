@@ -1,6 +1,8 @@
-# Maine Rink Times
+# Calarink
 
-Pulls public skate, stick & puck, shinny/pickup, and freestyle ice times from Maine rinks and shows them in one filterable list.
+<img src="public/logo.svg" width="64" alt="Calarink logo">
+
+Pulls public skate, stick & puck, shinny/pickup, and freestyle ice times from ice rinks and shows them in one filterable list. Live at **https://calarink.com**. Maine is the first state: **https://calarink.com/maine**.
 
 ## Run it
 
@@ -13,11 +15,10 @@ npm start
 
 Then open http://localhost:5178. The server listens on `127.0.0.1` only. Set `HOST=0.0.0.0` to reach it from other devices on your network, or `PORT=xxxx` to change the port.
 
-## Published site (GitHub Pages)
+## Published site (calarink.com)
 
-`.github/workflows/publish.yml` runs `npm run build` every 30 minutes, on every push to `main`, and on demand (Actions tab → Publish → Run workflow). The build pulls every rink once and writes `dist/`: the page plus `schedule.json`. The published page has no Refresh button; it re-reads `schedule.json` every 10 minutes.
+GitHub Pages serves the site at calarink.com; the domain is registered with Cloudflare, whose DNS points at GitHub (records set to DNS only). `.github/workflows/publish.yml` runs `npm run build` every 30 minutes, on every push to `main`, and on demand (Actions tab → Publish → Run workflow). The build pulls every rink once and writes `dist/`: the page, `schedule.json`, and a copy of the page for each state (`dist/maine/index.html`). The published page has no Refresh button; it re-reads `schedule.json` every 10 minutes.
 
-- One-time setup: repo **Settings → Pages → Source: GitHub Actions**.
 - A rink whose site fails keeps its last good copy (the workflow carries `data/` between runs). If every rink fails, the run stops and the old site stays up.
 - GitHub can start scheduled runs late when it's busy, and pauses them after 60 days with no commits. Re-enable from the Actions tab.
 
@@ -36,10 +37,16 @@ The server caches each source for 30 minutes (in memory and in `data/cache.json`
 
 Sessions are sorted into categories by keywords in their titles ([src/categorize.js](src/categorize.js)). Team practices, games, and rentals are hidden by default; tick "Also show team / private ice" to see the whole arena schedule.
 
+## States
+
+`STATES` in [src/rinks.js](src/rinks.js) lists the states in the header's state picker, and every rink has a `state` code. A state's `slug` is its address: `calarink.com/maine`, or `?state=maine`. Picking a state updates the address bar, and a visitor with no state in the address gets the state they used last.
+
+To add a state, add it to `STATES` (for example `{ code: 'NH', slug: 'new-hampshire', name: 'New Hampshire' }`) and give its rinks that `state` code. The build creates its page automatically. Times are shown in Eastern, so a state in another time zone needs that handled first.
+
 ## Adding a rink
 
 1. Find how the rink publishes its schedule. Look in the page source for `calendar.google.com/calendar/embed?src=...`. That ID goes into `gcal('...')`.
-2. Add an entry to `RINKS` in `src/rinks.js`.
-3. Restart the server.
+2. Add an entry to `RINKS` in `src/rinks.js`, with its `state` and `region`.
+3. Restart the server locally, or push to `main` to publish.
 
 A new schedule platform (for example DaySmart/Dash or CourtReserve) needs a small adapter in `src/sources/`, registered in `ADAPTERS` in `src/schedule.js`.

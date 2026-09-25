@@ -1,7 +1,7 @@
 // Pulls every rink's sources, normalizes sessions, and caches results.
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { RINKS } from './rinks.js';
+import { RINKS, STATES } from './rinks.js';
 import { categorize, isCancelled, CATEGORY_LIST } from './categorize.js';
 import { nyDate, nyToday, DAY_MS } from './time.js';
 import { fetchIcs } from './sources/ics.js';
@@ -103,6 +103,7 @@ export async function getSchedule({ force = false } = {}) {
   return {
     generatedAt: new Date().toISOString(),
     categories: CATEGORY_LIST,
+    states: STATES,
     rinks: rinkResults.map(r => r.rink),
     sessions: rinkResults.flatMap(r => r.sessions).sort((a, b) => a.start.localeCompare(b.start)),
   };

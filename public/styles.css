@@ -67,6 +67,20 @@ a { color: var(--accent); }
 .top-inner { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
 h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
 .sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.brand-mark { flex: none; display: block; line-height: 0; border-radius: 10px; }
+.brand-mark img { display: block; width: 42px; height: 42px; }
+.brand-text { min-width: 0; }
+.wordmark { font-size: 24px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; }
+.wordmark span { color: var(--accent); }
+.top-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.state-pick select { width: auto; padding: 7px 30px 7px 10px; font-weight: 600; cursor: pointer; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 520px) {
+  .brand-mark img { width: 36px; height: 36px; }
+  .wordmark { font-size: 21px; }
+  .sub { font-size: 12px; }
+}
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px;

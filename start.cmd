@@ -1,5 +1,5 @@
 @echo off
-rem Double-click to run Maine Rink Times and open it in your browser.
+rem Double-click to run Calarink and open it in your browser.
 cd /d "%~dp0"
 if not exist node_modules (
   echo Installing dependencies...

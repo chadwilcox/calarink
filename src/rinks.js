@@ -1,4 +1,7 @@
-// Maine rink registry.
+// Rink registry.
+//
+// Every rink has a `state` code from STATES. A state's `slug` is its web address
+// (calarink.com/maine); the build writes a page for each one.
 //
 // source.type:
 //   'ics'      – iCalendar feed (public Google Calendars work: .../calendar/ical/<id>/public/basic.ics)
@@ -10,11 +13,15 @@
 
 const gcal = id => `https://calendar.google.com/calendar/ical/${encodeURIComponent(id)}/public/basic.ics`;
 
+export const STATES = [
+  { code: 'ME', slug: 'maine', name: 'Maine' },
+];
+
 export const RINKS = [
   {
     id: 'usm-gorham',
     name: 'USM Ice Arena',
-    town: 'Gorham', region: 'Southern',
+    town: 'Gorham', state: 'ME', region: 'Southern',
     website: 'https://usm.maine.edu/ice-arena/hours/',
     sources: [{ type: 'ics', url: gcal('usmicearena@maine.edu') }],
     note: 'Full arena calendar. "Student Open Skate" is USM-only.',
@@ -22,7 +29,7 @@ export const RINKS = [
   {
     id: 'ice-vault-hallowell',
     name: 'Thomas College Ice Vault',
-    town: 'Hallowell', region: 'Central',
+    town: 'Hallowell', state: 'ME', region: 'Central',
     address: '203 Whitten Rd, Hallowell, ME',
     website: 'https://www.maineicevault.com/',
     scheduleUrl: 'https://tciv.finnlyconnect.com/schedule/612',
@@ -32,7 +39,7 @@ export const RINKS = [
   {
     id: 'alfond-orono',
     name: 'Alfond Arena (UMaine)',
-    town: 'Orono', region: 'Northern & Downeast',
+    town: 'Orono', state: 'ME', region: 'Northern & Downeast',
     website: 'https://umaine.edu/campusrecreation/facilities__trashed/alfond-arena/',
     sources: [{ type: 'ics', url: gcal('o84kduv0jjtn8siju6nu5i9ueg@group.calendar.google.com') }],
     note: 'Public skate & stick-and-puck calendar only (Campus Rec). Stick & Puck is 18+.',
@@ -40,7 +47,7 @@ export const RINKS = [
   {
     id: 'pia-brewer',
     name: 'Penobscot Ice Arena (PIA)',
-    town: 'Brewer', region: 'Northern & Downeast',
+    town: 'Brewer', state: 'ME', region: 'Northern & Downeast',
     address: '90 Acme Rd, Brewer, ME', phone: '207-989-7183',
     website: 'https://www.penobscoticearena.com/',
     sources: [{ type: 'ics', url: gcal('m3mm3gbf0u02ko5jcg9r7c091k@group.calendar.google.com') }],
@@ -49,7 +56,7 @@ export const RINKS = [
   {
     id: 'pcia-dover-foxcroft',
     name: 'Piscataquis County Ice Arena (PCIA)',
-    town: 'Dover-Foxcroft', region: 'Northern & Downeast',
+    town: 'Dover-Foxcroft', state: 'ME', region: 'Northern & Downeast',
     address: '1049 W Main St, Dover-Foxcroft, ME',
     website: 'https://www.thepcia.com/public-skate.html',
     scheduleUrl: 'https://pcia.finnlyconnect.com/schedule/903',
@@ -59,7 +66,7 @@ export const RINKS = [
   {
     id: 'forum-presque-isle',
     name: 'The Forum',
-    town: 'Presque Isle', region: 'Northern & Downeast',
+    town: 'Presque Isle', state: 'ME', region: 'Northern & Downeast',
     phone: '207-764-0491',
     website: 'https://www.thepiforum.org/',
     sources: [{ type: 'ics', url: 'https://outlook.office365.com/owa/calendar/0069475393ca4306b04019da8c33ab28@presqueisleme.us/815093ea02cb4d868f4e76c2f0ebcc8c8151721194698282749/calendar.ics' }],
@@ -68,7 +75,7 @@ export const RINKS = [
   {
     id: 'casco-bay-falmouth',
     name: 'Casco Bay Arena',
-    town: 'Falmouth', region: 'Southern',
+    town: 'Falmouth', state: 'ME', region: 'Southern',
     website: 'https://cascobayarena.com/ice-schedule-2/',
     sources: [{ type: 'ics', url: gcal('12qbntcc8t3cgl39lde3pm54ao@group.calendar.google.com') }],
     note: 'Arena master schedule. Mostly team ice; "OPEN" = unbooked ice, not a public session.',
@@ -76,7 +83,7 @@ export const RINKS = [
   {
     id: 'nsb-auburn',
     name: 'Norway Savings Bank Arena',
-    town: 'Auburn', region: 'Central',
+    town: 'Auburn', state: 'ME', region: 'Central',
     address: '985 Turner St, Auburn, ME',
     website: 'https://www.norwaysavingsbankarena.com/page/show/8447987-drop-in-recreational-programming',
     sources: [
@@ -90,7 +97,7 @@ export const RINKS = [
   {
     id: 'troubh-portland',
     name: 'Troubh Ice Arena',
-    town: 'Portland', region: 'Southern',
+    town: 'Portland', state: 'ME', region: 'Southern',
     address: '225 Park Ave, Portland, ME', phone: '207-774-8553',
     website: 'https://www.portlandmaine.gov/528/William-B-Troubh-Ice-Arena',
     note: 'Public skate calendar is posted as a monthly PDF.',
@@ -98,14 +105,14 @@ export const RINKS = [
   {
     id: 'colisee-lewiston',
     name: 'The Colisée',
-    town: 'Lewiston', region: 'Central',
+    town: 'Lewiston', state: 'ME', region: 'Central',
     address: '190 Birch St, Lewiston, ME', phone: '207-783-2009',
     website: 'https://www.thecolisee.com/',
   },
   {
     id: 'sawyer-bangor',
     name: 'Sawyer Arena',
-    town: 'Bangor', region: 'Northern & Downeast',
+    town: 'Bangor', state: 'ME', region: 'Northern & Downeast',
     address: '107 13th St, Bangor, ME', phone: '207-947-0071',
     website: 'https://www.bangormaine.gov/676/Sawyer-Arena',
     note: 'Closed for the off-season; reopens October 2026. Public skate times are posted as PDFs on Bangor Parks & Rec (bangorme.myrec.com) and Facebook.',
@@ -113,7 +120,7 @@ export const RINKS = [
   {
     id: 'midcoast-rockport',
     name: 'Midcoast Recreation Center',
-    town: 'Rockport', region: 'Midcoast',
+    town: 'Rockport', state: 'ME', region: 'Midcoast',
     address: '535 West St, Rockport, ME', phone: '207-236-9400',
     website: 'https://www.midcoastrec.org/public-skate',
     scheduleUrl: 'https://book.midcoastrec.org/Online/Public/EmbedCode/16147/58434?customId=125636',
@@ -122,7 +129,7 @@ export const RINKS = [
   {
     id: 'biddeford',
     name: 'Biddeford Ice Arena',
-    town: 'Biddeford', region: 'Southern',
+    town: 'Biddeford', state: 'ME', region: 'Southern',
     address: '14 Pomerleau St, Biddeford, ME', phone: '207-283-0615',
     website: 'https://biddefordarena.com/public-skating',
     note: 'Public skating is limited; they post times on Facebook.',
@@ -130,7 +137,7 @@ export const RINKS = [
   {
     id: 'family-ice-falmouth',
     name: 'Family Ice Center',
-    town: 'Falmouth', region: 'Southern',
+    town: 'Falmouth', state: 'ME', region: 'Southern',
     address: '20 Hat Trick Dr, Falmouth, ME', phone: '207-781-4200',
     website: 'https://familyice.org/programs/public-skating/',
     note: 'Outdoor pond only, early Dec – late Feb, 10am–9pm daily, weather permitting. Free. No indoor public skate.',
@@ -138,13 +145,13 @@ export const RINKS = [
   {
     id: 'travis-roy-yarmouth',
     name: 'Travis Roy Ice Arena (NYA)',
-    town: 'Yarmouth', region: 'Southern',
+    town: 'Yarmouth', state: 'ME', region: 'Southern',
     website: 'https://www.facebook.com/NYATravisRoyArena/',
   },
   {
     id: 'thompsons-point',
     name: "The Rink at Thompson's Point (outdoor, seasonal)",
-    town: 'Portland', region: 'Southern',
+    town: 'Portland', state: 'ME', region: 'Southern',
     website: 'https://www.thompsonspointrink.com/iceschedule',
   },
 ];

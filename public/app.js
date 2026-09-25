@@ -1,6 +1,6 @@
 const TZ = 'America/New_York';
 const PUBLIC_DEFAULT = ['public', 'stick-puck', 'shinny', 'freestyle'];
-const STORE_KEY = 'maine-rink-times:v1';
+const STORE_KEY = 'maine-rink-times:v1'; // pre-Calarink name, kept so returning visitors keep their filters
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const $ = sel => document.querySelector(sel);
@@ -13,10 +13,11 @@ const fmtStamp = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'shor
 const fmtDow = new Intl.DateTimeFormat('en-US', { timeZone: TZ, weekday: 'short' });
 
 let data = null;
+let pageBase = null; // site root that state pages hang off: '/' on calarink.com
 const state = loadState();
 
 function loadState() {
-  const base = { types: PUBLIC_DEFAULT, showAll: false, hideCancelled: true, days: 14, dow: [], region: '', hiddenRinks: [] };
+  const base = { types: PUBLIC_DEFAULT, showAll: false, hideCancelled: true, days: 14, dow: [], usState: '', region: '', hiddenRinks: [] };
   try { return { ...base, ...JSON.parse(localStorage.getItem(STORE_KEY) || '{}') }; } catch { return base; }
 }
 function saveState() {
@@ -34,6 +35,7 @@ async function load(refresh = false) {
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
     data = await res.json();
     btn.hidden = !!data.static; // the published site is rebuilt on a schedule; there's no server to refresh
+    if (pageBase === null) applyUrlState();
     buildStaticControls();
     render();
   } catch (err) {
@@ -43,14 +45,43 @@ async function load(refresh = false) {
   }
 }
 
+// ---------- US state ----------
+// calarink.com/maine or ?state=maine opens that state; otherwise the last state used, else the first.
+function findState(v) {
+  v = String(v || '').toLowerCase();
+  return v ? data.states.find(s => [s.slug, s.code, s.name].some(x => x.toLowerCase() === v)) : undefined;
+}
+function currentState() { return findState(state.usState) || data.states[0]; }
+const inState = r => r.state === currentState().code;
+
+function applyUrlState() {
+  const m = /^(.*\/)([^/]+)\/?$/.exec(location.pathname);
+  const fromPath = m && findState(m[2]);
+  pageBase = fromPath ? m[1] : location.pathname.replace(/[^/]*$/, '');
+  const pick = findState(new URLSearchParams(location.search).get('state')) || fromPath || currentState();
+  if (pick.code !== state.usState) setUsState(pick.code, { updateUrl: false });
+}
+
+function setUsState(code, { updateUrl = true } = {}) {
+  const changed = code !== state.usState;
+  state.usState = code;
+  if (changed) { state.region = ''; state.hiddenRinks = []; } // regions and rinks belong to one state
+  if (updateUrl) history.replaceState(null, '', pageBase + currentState().slug);
+  saveState();
+}
+
 // ---------- controls ----------
 function buildStaticControls() {
+  const us = currentState();
+  document.title = `Calarink · ${us.name}`;
+  $('#usState').innerHTML = data.states.map(s => `<option value="${esc(s.code)}" ${s.code === us.code ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+
   const typeBox = $('#types');
   typeBox.innerHTML = data.categories.filter(c => c.public).sort((a, b) => PUBLIC_DEFAULT.indexOf(a.id) - PUBLIC_DEFAULT.indexOf(b.id)).map(c =>
     `<button class="chip" style="--c:var(--c-${c.id})" data-type="${c.id}" aria-pressed="${state.types.includes(c.id)}">${esc(c.label)}</button>`).join('');
 
-  const regions = [...new Set(data.rinks.map(r => r.region))].sort();
-  $('#region').innerHTML = `<option value="">All of Maine</option>` + regions.map(r => `<option ${r === state.region ? 'selected' : ''}>${esc(r)}</option>`).join('');
+  const regions = [...new Set(data.rinks.filter(inState).map(r => r.region))].sort();
+  $('#region').innerHTML = `<option value="">All of ${esc(us.name)}</option>` + regions.map(r => `<option ${r === state.region ? 'selected' : ''}>${esc(r)}</option>`).join('');
 
   $('#dow').innerHTML = DOW.map((d, i) => `<button data-dow="${i}" aria-pressed="${state.dow.includes(i)}" title="Only ${d}">${d[0]}</button>`).join('');
   $('#showAll').checked = state.showAll;
@@ -82,6 +113,7 @@ function wireControls() {
   $('#showAll').addEventListener('change', e => { state.showAll = e.target.checked; commit(); });
   $('#hideCancelled').addEventListener('change', e => { state.hideCancelled = e.target.checked; commit(); });
   $('#region').addEventListener('change', e => { state.region = e.target.value; commit(); });
+  $('#usState').addEventListener('change', e => { setUsState(e.target.value); buildStaticControls(); render(); });
   $('#rinkList').addEventListener('change', e => {
     const id = e.target.dataset.rink; if (!id) return;
     state.hiddenRinks = e.target.checked ? state.hiddenRinks.filter(x => x !== id) : [...state.hiddenRinks, id];
@@ -98,6 +130,8 @@ function commit() { saveState(); render(); }
 
 // ---------- filtering ----------
 function rinkById(id) { return data.rinks.find(r => r.id === id); }
+// Rink is in the chosen state and region.
+const inArea = r => inState(r) && (!state.region || r.region === state.region);
 
 function baseFilter(s, now, until) {
   const start = Date.parse(s.start), end = Date.parse(s.end);
@@ -106,8 +140,7 @@ function baseFilter(s, now, until) {
   if (!typeOk) return false;
   if (state.hideCancelled && s.cancelled) return false;
   if (state.dow.length && !state.dow.includes(DOW.indexOf(fmtDow.format(new Date(start))))) return false;
-  const rink = rinkById(s.rinkId);
-  if (state.region && rink.region !== state.region) return false;
+  if (!inArea(rinkById(s.rinkId))) return false;
   return true;
 }
 
@@ -137,13 +170,13 @@ function renderUpdated() {
   const stamps = data.rinks.filter(r => r.status).map(r => r.status.fetchedAt);
   const oldest = Math.min(...stamps);
   const mins = Math.round((Date.now() - oldest) / 60000);
-  $('#updated').textContent = `${data.rinks.filter(r => r.live).length} rinks pulled live · data ${mins < 1 ? 'just now' : `${mins} min old`} · times shown in Eastern`;
+  $('#updated').textContent = `${data.rinks.filter(r => r.live && inState(r)).length} rinks pulled live · data ${mins < 1 ? 'just now' : `${mins} min old`} · times shown in Eastern`;
 }
 
 function renderRinkList(inScope) {
   const counts = {};
   for (const s of inScope) counts[s.rinkId] = (counts[s.rinkId] || 0) + 1;
-  const rinks = data.rinks.filter(r => r.live && (!state.region || r.region === state.region));
+  const rinks = data.rinks.filter(r => r.live && inArea(r));
   $('#rinkList').innerHTML = rinks.map(r => {
     const n = counts[r.id] || 0;
     const err = r.status && !r.status.ok;
@@ -157,7 +190,7 @@ function renderRinkList(inScope) {
 
 function renderSummary(visible) {
   const rinksWith = new Set(visible.map(s => s.rinkId)).size;
-  const live = data.rinks.filter(r => r.live && !state.hiddenRinks.includes(r.id) && (!state.region || r.region === state.region));
+  const live = data.rinks.filter(r => r.live && !state.hiddenRinks.includes(r.id) && inArea(r));
   const errored = live.filter(r => r.status && !r.status.ok);
   const unposted = live.filter(r => r.status?.ok && r.status.count === 0);
   $('#summary').innerHTML = `<span><strong>${visible.length}</strong> session${visible.length === 1 ? '' : 's'} at ${rinksWith} rink${rinksWith === 1 ? '' : 's'}</span>`;
@@ -217,7 +250,7 @@ function renderAgenda(visible, now) {
 }
 
 function renderDirect() {
-  const rinks = data.rinks.filter(r => !r.live && (!state.region || r.region === state.region));
+  const rinks = data.rinks.filter(r => !r.live && inArea(r));
   $('#directSection').hidden = !rinks.length;
   $('#direct').innerHTML = rinks.map(r => `<div class="card">
     <h3>${esc(r.name)}</h3><div class="town">${esc(r.town)}${r.address ? ` · ${esc(r.address.replace(/, ME$/, ''))}` : ''}</div>
@@ -235,8 +268,8 @@ function downloadIcs(id) {
   const stamp = iso => iso.replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const escIcs = t => String(t).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
   const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Maine Rink Times//EN', 'BEGIN:VEVENT',
-    `UID:${s.id.replace(/[^\w-]/g, '-')}@maine-rink-times`,
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Calarink//EN', 'BEGIN:VEVENT',
+    `UID:${s.id.replace(/[^\w-]/g, '-')}@calarink.com`,
     `DTSTAMP:${stamp(new Date().toISOString())}`,
     `DTSTART:${stamp(s.start)}`, `DTEND:${stamp(s.end)}`,
     `SUMMARY:${escIcs(`${s.title} @ ${rink.name}`)}`,

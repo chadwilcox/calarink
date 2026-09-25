@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getSchedule, loadCache } from './src/schedule.js';
+import { STATES } from './src/rinks.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 process.chdir(ROOT);
@@ -26,6 +27,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method !== 'GET') return send(res, 405, '{"error":"method not allowed"}');
 
+    // State pages (/maine): the same page, with its files pointed back at the root.
+    const slug = url.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+    if (STATES.some(s => s.slug === slug)) {
+      const html = await fs.readFile(path.join(PUBLIC, 'index.html'), 'utf8');
+      return send(res, 200, html.replace('<head>', '<head>\n  <base href="/">'), TYPES['.html']);
+    }
+
     const rel = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname).replace(/^\/+/, '');
     const file = path.join(PUBLIC, rel);
     if (!file.startsWith(PUBLIC + path.sep)) return send(res, 403, 'forbidden', 'text/plain');
@@ -40,6 +48,6 @@ const server = http.createServer(async (req, res) => {
 
 await loadCache();
 server.listen(PORT, HOST, () => {
-  console.log(`Maine Rink Times running at http://localhost:${PORT}`);
+  console.log(`Calarink running at http://localhost:${PORT}`);
   getSchedule().catch(() => {}); // warm the cache
 });
