@@ -99,6 +99,7 @@ h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
 .filters section:last-child { border-bottom: 0; }
 .filters h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 700; }
 .row-between { display: flex; justify-content: space-between; align-items: center; }
+.linkbtns { display: inline-flex; gap: 10px; }
 .linkbtn { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 12px; text-transform: none; letter-spacing: 0; padding: 0; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }

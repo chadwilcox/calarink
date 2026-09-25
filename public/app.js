@@ -139,6 +139,12 @@ function wireControls() {
     commit();
   });
   $('#rinksAll').addEventListener('click', () => { state.hiddenRinks = []; commit(); });
+  // Clear every rink in the list (this state and region), then tick the ones you want.
+  $('#rinksNone').addEventListener('click', () => {
+    const shown = data.rinks.filter(r => r.live && inArea(r)).map(r => r.id);
+    state.hiddenRinks = [...new Set([...state.hiddenRinks, ...shown])];
+    commit();
+  });
   $('#refresh').addEventListener('click', () => load(true));
   $('#agenda').addEventListener('click', e => {
     const b = e.target.closest('[data-ics]'); if (b) downloadIcs(b.dataset.ics);
