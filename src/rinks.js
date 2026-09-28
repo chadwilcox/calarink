@@ -7,6 +7,8 @@
 //   'ics'      – iCalendar feed (public Google Calendars work: .../calendar/ical/<id>/public/basic.ics)
 //   'finnly'   – Finnly Connect public schedule page
 //   'pageText' – schedule posted as text on a web page (dated lines, optional weekly lines)
+//   'daysmart' – DaySmart Recreation (Dash) booking API
+//   'courtreserve' – CourtReserve public calendar; `categories` picks the ice categories by name
 //   none       – no machine-readable schedule; shown as a "check directly" card
 //
 // To add a rink, append an entry. `id` must be unique and stable (it's used in the URL filters).
@@ -100,6 +102,22 @@ export const RINKS = [
     note: 'Read from the arena\'s posted text. Public skate $5; shinny $10. Changes often — check the site.',
   },
 
+  {
+    id: 'midcoast-rockport',
+    name: 'Midcoast Recreation Center',
+    town: 'Rockport', state: 'ME', region: 'Midcoast',
+    address: '535 West St, Rockport, ME', phone: '207-236-9400',
+    website: 'https://www.midcoastrec.org/public-skate',
+    scheduleUrl: 'https://book.midcoastrec.org/Online/Public/EmbedCode/16147/58434?customId=125636',
+    sources: [{
+      type: 'courtreserve',
+      url: 'https://book.midcoastrec.org/Online/Public/EmbedCode/16147/58434?customId=125636',
+      categories: /hockey|skat/i, // the calendar also carries tennis, pickleball, golf and fitness
+      exclude: /off-ice (only|training)/i,
+    }],
+    note: "Ice programs from the club calendar (hockey, figure skating and skating categories). Arena rentals aren't shown.",
+  },
+
   // ---- No machine-readable schedule: shown as "check directly" ----
   {
     id: 'troubh-portland',
@@ -123,15 +141,6 @@ export const RINKS = [
     address: '107 13th St, Bangor, ME', phone: '207-947-0071',
     website: 'https://www.bangormaine.gov/676/Sawyer-Arena',
     note: 'Closed for the off-season; reopens October 2026. Public skate times are posted as PDFs on Bangor Parks & Rec (bangorme.myrec.com) and Facebook.',
-  },
-  {
-    id: 'midcoast-rockport',
-    name: 'Midcoast Recreation Center',
-    town: 'Rockport', state: 'ME', region: 'Midcoast',
-    address: '535 West St, Rockport, ME', phone: '207-236-9400',
-    website: 'https://www.midcoastrec.org/public-skate',
-    scheduleUrl: 'https://book.midcoastrec.org/Online/Public/EmbedCode/16147/58434?customId=125636',
-    note: 'Arena schedule is a live CourtReserve calendar (not scrapeable without a browser).',
   },
   {
     id: 'biddeford',

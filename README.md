@@ -33,6 +33,7 @@ Each rink in [src/rinks.js](src/rinks.js) lists zero or more **sources**:
 | `ics`      | Reads a public iCalendar feed (Google Calendar, published Outlook calendar). Recurring events are expanded. | Penobscot Ice Arena, Talbot Rink, Cranston Veterans Memorial, Maple Grove |
 | `finnly`   | Reads the JSON schedule embedded in a Finnly Connect page (`<rink>.finnlyconnect.com/schedule/<n>`) | Warrior Ice Arena, Everett Arena, Super Rink, ISCC |
 | `daysmart` | Reads DaySmart Recreation ("Dash") events from the public API the rink's booking page uses. `company` is the slug in the rink's `apps.daysmartrecreation.com/dash/x/#/online/<slug>` links. | Campion Rink, Stamford Twin Rinks |
+| `courtreserve` | Reads a CourtReserve public calendar (`/Online/Public/EmbedCode/<org>/<id>`) over the SignalR connection the calendar page itself uses. `categories` is a pattern for the event categories to include, since multi-sport clubs share one calendar. | Midcoast Recreation Center |
 | `pageText` | Reads times from text on the rink's web page ("Monday, September 21st ... 5:20 - 6:20 PM"). With `projectWeekly: N`, lines like "Sundays 3:50 - 4:50 PM" are repeated for N weeks. | Norway Savings Bank Arena |
 | none       | Shown as a "check directly" card with the website and phone number | PDFs, Facebook, and booking widgets that can't be read |
 
@@ -52,8 +53,8 @@ To add a state, add it to `STATES` (for example `{ code: 'VT', slug: 'vermont', 
 
 ## Adding a rink
 
-1. Find how the rink publishes its schedule. In the page source (and its schedule pages), look for `calendar.google.com/calendar/embed?src=...` (the ID goes into `gcal('...')`; embed IDs are sometimes base64), `finnlyconnect.com/schedule/<n>`, or `daysmartrecreation.com/dash/x/#/online/<slug>`.
+1. Find how the rink publishes its schedule. In the page source (and its schedule pages), look for `calendar.google.com/calendar/embed?src=...` (the ID goes into `gcal('...')`; embed IDs are sometimes base64), `finnlyconnect.com/schedule/<n>`, or `daysmartrecreation.com/dash/x/#/online/<slug>`, or a CourtReserve `/Online/Public/EmbedCode/<org>/<id>` calendar.
 2. Add an entry to `RINKS` in `src/rinks.js`, with its `state` and `region`.
 3. Restart the server locally, or push to `main` to publish.
 
-A new schedule platform (for example EZFacility, Crossbar or CourtReserve) needs a small adapter in `src/sources/`, registered in `ADAPTERS` in `src/schedule.js`.
+A new schedule platform (for example EZFacility or Crossbar) needs a small adapter in `src/sources/`, registered in `ADAPTERS` in `src/schedule.js`.

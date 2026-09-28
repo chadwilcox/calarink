@@ -8,8 +8,9 @@ import { fetchIcs } from './sources/ics.js';
 import { fetchFinnly } from './sources/finnly.js';
 import { fetchPageText } from './sources/pageText.js';
 import { fetchDaySmart } from './sources/daysmart.js';
+import { fetchCourtReserve } from './sources/courtreserve.js';
 
-const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart };
+const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart, courtreserve: fetchCourtReserve };
 const TZ_BY_STATE = Object.fromEntries(STATES.map(s => [s.code, s.tz || DEFAULT_TZ]));
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const WINDOW_DAYS = 120;
