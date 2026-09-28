@@ -24,7 +24,15 @@ if (!data.sessions.length) {
 
 await fs.rm(DIST, { recursive: true, force: true });
 await fs.cp('public', DIST, { recursive: true });
-await fs.writeFile(path.join(DIST, 'schedule.json'), JSON.stringify(data));
+// schedule.json has the states and rinks; each state's sessions go in sessions/<slug>.json so a
+// visitor downloads only the state they're looking at (all of them together run to megabytes).
+const { sessions, ...meta } = data;
+await fs.writeFile(path.join(DIST, 'schedule.json'), JSON.stringify(meta));
+await fs.mkdir(path.join(DIST, 'sessions'));
+const stateOf = new Map(data.rinks.map(r => [r.id, r.state]));
+for (const s of STATES) {
+  await fs.writeFile(path.join(DIST, 'sessions', `${s.slug}.json`), JSON.stringify(sessions.filter(x => stateOf.get(x.rinkId) === s.code)));
+}
 await fs.writeFile(path.join(DIST, '.nojekyll'), '');
 
 // Browsers (and Cloudflare, which sets a 4-hour browser cache on .js/.css) keep the script and

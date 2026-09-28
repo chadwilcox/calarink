@@ -56,9 +56,14 @@ async function load(refresh = false) {
     // Relative, so it works both from the local server and from a GitHub Pages subpath.
     const res = await fetch(`schedule.json${refresh ? '?refresh=1' : ''}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
-    data = await res.json();
+    const next = await res.json();
+    // The published site keeps each state's sessions in its own file (sessions/maine.json), so a
+    // visitor downloads only the state they're looking at. The local server sends everything.
+    if (!next.sessions) next.sessions = data?.sessions && data.generatedAt === next.generatedAt ? data.sessions : null;
+    data = next;
     btn.hidden = !!data.static; // the published site is rebuilt on a schedule; there's no server to refresh
     if (pageBase === null) applyUrlState();
+    if (!data.sessions) await loadStateSessions();
     buildStaticControls();
     render();
   } catch (err) {
@@ -67,6 +72,14 @@ async function load(refresh = false) {
   } finally {
     btn.disabled = false; btn.classList.remove('spinning');
   }
+}
+
+async function loadStateSessions() {
+  const slug = currentState().slug;
+  const res = await fetch(`sessions/${slug}.json?v=${encodeURIComponent(data.generatedAt)}`);
+  if (!res.ok) throw new Error(`Server returned ${res.status}`);
+  const sessions = await res.json();
+  if (currentState().slug === slug) data.sessions = sessions; // ignore a reply for a state the visitor already left
 }
 
 // ---------- US state ----------
@@ -175,7 +188,13 @@ function wireControls() {
     commit();
   });
   $('#region').addEventListener('change', e => { state.region = e.target.value; commit(); });
-  $('#usState').addEventListener('change', e => { setUsState(e.target.value); buildStaticControls(); render(); });
+  $('#usState').addEventListener('change', async e => {
+    setUsState(e.target.value);
+    if (data.static) {
+      try { await loadStateSessions(); } catch { load(); return; }
+    }
+    buildStaticControls(); render();
+  });
   $('#rinkList').addEventListener('change', e => {
     const id = e.target.dataset.rink; if (!id) return;
     state.hiddenRinks = e.target.checked ? state.hiddenRinks.filter(x => x !== id) : [...state.hiddenRinks, id];

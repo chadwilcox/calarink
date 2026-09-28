@@ -6,6 +6,10 @@ import { fetchText } from '../http.js';
 const MAX_OCCURRENCES_PER_EVENT = 5000;
 const SLACK_DAYS = 2; // DTSTART dates are compared as bare YYYYMMDD, so pad for time zones
 
+// Google Calendar adds video-call joining details (link, dial-in number, PIN) to events made
+// with Meet; they're the rink staff's, not for the public page.
+const MEET_RE = /-::~:~::~:~:[\s\S]*?::~:~::-|Join with Google Meet:[\s\S]*?support\.google\.com\S*/g;
+
 // Some feeds carry years of history (Penobscot Ice Arena: ~20k events, 6 MB), and
 // ical.js gets slow and memory-hungry on those. Drop one-off events outside the
 // window on the raw text before parsing. Recurring masters are kept unless their
@@ -57,7 +61,7 @@ export async function fetchIcs(source, { from, to }) {
     if (e < from || s > to) return;
     out.push({
       title: (item.summary || '').trim(),
-      description: (item.description || '').trim(),
+      description: (item.description || '').replace(MEET_RE, '').trim(),
       start: s, end: e,
     });
   };

@@ -2,7 +2,7 @@
 
 <img src="public/logo.svg" width="64" alt="Calarink logo">
 
-Pulls public skate, stick & puck, shinny/pickup, and freestyle ice times from ice rinks and shows them in one filterable list. Live at **https://calarink.com**, one page per state: `/connecticut`, `/maine`, `/massachusetts`, `/minnesota`, `/new-hampshire`, `/rhode-island`.
+Pulls public skate, stick & puck, shinny/pickup, and freestyle ice times from ice rinks and shows them in one filterable list. Live at **https://calarink.com**, one page per state: `/colorado`, `/connecticut`, `/florida`, `/maine`, `/massachusetts`, `/michigan`, `/minnesota`, `/new-hampshire`, `/new-york`, `/rhode-island`, `/vermont`.
 
 ## Run it
 
@@ -32,7 +32,7 @@ Each rink in [src/rinks.js](src/rinks.js) lists zero or more **sources**:
 |------------|--------------|----------|
 | `ics`      | Reads a public iCalendar feed (Google Calendar, published Outlook calendar). Recurring events are expanded. | Penobscot Ice Arena, Talbot Rink, Cranston Veterans Memorial, Maple Grove |
 | `finnly`   | Reads the JSON schedule embedded in a Finnly Connect page (`<rink>.finnlyconnect.com/schedule/<n>`) | Warrior Ice Arena, Everett Arena, Super Rink, ISCC |
-| `daysmart` | Reads DaySmart Recreation ("Dash") events from the public API the rink's booking page uses. `company` is the slug in the rink's `apps.daysmartrecreation.com/dash/x/#/online/<slug>` links. | Campion Rink, Stamford Twin Rinks |
+| `daysmart` | Reads DaySmart Recreation ("Dash") events from the public API the rink's booking page uses. `company` is the slug in the rink's `apps.daysmartrecreation.com/dash/x/#/online/<slug>` links. `resourceIds` keeps only the ice sheets (list them at `api.dashplatform.com/v1/resources?company=<slug>`), which also splits a company that runs several arenas. | Campion Rink, Stamford Twin Rinks |
 | `courtreserve` | Reads a CourtReserve public calendar (`/Online/Public/EmbedCode/<org>/<id>`) over the SignalR connection the calendar page itself uses. `categories` is a pattern for the event categories to include, since multi-sport clubs share one calendar. | Midcoast Recreation Center |
 | `pageText` | Reads times from text on the rink's web page ("Monday, September 21st ... 5:20 - 6:20 PM"). With `projectWeekly: N`, lines like "Sundays 3:50 - 4:50 PM" are repeated for N weeks. | Norway Savings Bank Arena |
 | none       | Shown as a "check directly" card with the website and phone number | PDFs, Facebook, and booking widgets that can't be read |
@@ -47,7 +47,7 @@ Sessions are sorted into categories by keywords in their titles ([src/categorize
 
 `STATES` in [src/rinks.js](src/rinks.js) lists the states in the header's state picker, and every rink has a `state` code. A state's `slug` is its address: `calarink.com/maine`, or `?state=maine`. Picking a state updates the address bar; a visitor with no state in the address gets the state they used last, else the one marked `default` (Maine).
 
-Each state has a `tz`. Schedules that give local times with no zone (Finnly, page text) are read in it, and the site shows that state's times in it: Minnesota is `America/Chicago`, the rest Eastern.
+Each state has a `tz`. Schedules that give local times with no zone (Finnly, page text) are read in it, and the site shows that state's times in it: Colorado is `America/Denver`, Minnesota `America/Chicago`, Michigan `America/Detroit`, the rest `America/New_York`.
 
 To add a state, add it to `STATES` (for example `{ code: 'VT', slug: 'vermont', name: 'Vermont', tz: 'America/New_York' }`) and give its rinks that `state` code. The build creates its page automatically.
 

@@ -2,7 +2,10 @@
 // page uses: https://api.dashplatform.com/v1/events?company=<slug>. The slug is in the rink's
 // links to apps.daysmartrecreation.com/dash/x/#/online/<slug>/...
 //
-// source: { type: 'daysmart', company: 'stamford', facilityIds?: [1] }
+// source: { type: 'daysmart', company: 'stamford', facilityIds?: [1], resourceIds?: [1, 4], exclude?: /goalies/i }
+// `resourceIds` keeps only those sheets of ice: many rinks also book locker rooms, party rooms
+// and one resource per Learn to Skate group, which would repeat the ice session. `exclude`
+// drops sessions by title (a rink that sells goalie spots as a second listing of each session).
 // Times come with a GMT copy (start_gmt), so no time-zone guessing is needed.
 import { fetchText } from '../http.js';
 import { categorize, OTHER } from '../categorize.js';
@@ -45,6 +48,7 @@ export async function fetchDaySmart(source, { from, to }) {
     if (!a.publish) continue;
     const resource = rel(e, 'resource');
     if (source.facilityIds && resource && !source.facilityIds.includes(resource.facility_id)) continue;
+    if (source.resourceIds && !source.resourceIds.includes(Number(e.relationships?.resource?.data?.id))) continue;
     const start = gmt(a.start_gmt), end = gmt(a.end_gmt);
     if (!start || !end || end < from || start > to) continue;
 
@@ -53,6 +57,7 @@ export async function fetchDaySmart(source, { from, to }) {
     // Rentals are booked by a customer; show the type, never the customer's name.
     const isBooking = /rental|private|customer/i.test(type) || rel(e, 'eventType')?.has_customer;
     const title = isBooking ? (type || 'Rental') : name && name.toLowerCase() !== type.toLowerCase() ? name : type || name;
+    if (source.exclude?.test(title)) continue;
     out.push({
       title,
       // The session's own name decides ("Shinny" filed under a "Stick & Puck" type is shinny);
