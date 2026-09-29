@@ -31,6 +31,8 @@ export async function fetchDaySmart(source, { from, to }) {
       sort: 'start',
       include: 'summary,eventType,resource',
     });
+    // Filter on the server too: a chain like Canlan has tens of thousands of events company-wide.
+    if (source.resourceIds) q.set('filter[resource_id__in]', source.resourceIds.join(','));
     const j = JSON.parse(await fetchText(`${API}?${q}`));
     for (const x of j.included || []) included.set(`${x.type}:${x.id}`, x.attributes);
     events.push(...(j.data || []));

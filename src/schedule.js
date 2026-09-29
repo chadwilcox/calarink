@@ -9,8 +9,14 @@ import { fetchFinnly } from './sources/finnly.js';
 import { fetchPageText } from './sources/pageText.js';
 import { fetchDaySmart } from './sources/daysmart.js';
 import { fetchCourtReserve } from './sources/courtreserve.js';
+import { fetchTorontoDropIn } from './sources/torontoDropIn.js';
+import { fetchClassList } from './sources/classList.js';
+import { fetchMontrealArena } from './sources/montrealArena.js';
+import { fetchActiveNet } from './sources/activenet.js';
 
-const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart, courtreserve: fetchCourtReserve };
+const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart, courtreserve: fetchCourtReserve,
+  torontoDropIn: fetchTorontoDropIn, classList: fetchClassList, montrealArena: fetchMontrealArena, activenet: fetchActiveNet,
+};
 const TZ_BY_STATE = Object.fromEntries(STATES.map(s => [s.code, s.tz || DEFAULT_TZ]));
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const WINDOW_DAYS = 120;

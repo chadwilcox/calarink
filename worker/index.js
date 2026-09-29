@@ -1,6 +1,7 @@
 // Cloudflare Worker in front of calarink.com (GitHub Pages).
 // Tells the page which US state the visitor appears to be in, so a first-time visitor
-// from Maine opens Maine. Cloudflare already knows this from the request (request.cf),
+// from Maine opens Maine, and one from Ontario opens Ontario (US state and Canadian province
+// codes don't overlap). Cloudflare already knows this from the request (request.cf),
 // so no IP address goes anywhere else. Everything else passes through untouched.
 //
 // The page decides: a state in the address wins, then the visitor's last choice,
@@ -11,7 +12,7 @@ export default {
     const res = await fetch(request);
     const type = res.headers.get('content-type') || '';
     const cf = request.cf || {};
-    if (!type.includes('text/html') || cf.country !== 'US' || !cf.regionCode) return res;
+    if (!type.includes('text/html') || !['US', 'CA'].includes(cf.country) || !cf.regionCode) return res;
 
     const region = String(cf.regionCode).replace(/[^A-Z]/g, '').slice(0, 2);
     const out = new HTMLRewriter()

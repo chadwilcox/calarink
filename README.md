@@ -2,7 +2,7 @@
 
 <img src="public/logo.svg" width="64" alt="Calarink logo">
 
-Pulls public skate, stick & puck, shinny/pickup, and freestyle ice times from ice rinks and shows them in one filterable list. Live at **https://calarink.com**, one page per state: `/colorado`, `/connecticut`, `/florida`, `/maine`, `/massachusetts`, `/michigan`, `/minnesota`, `/new-hampshire`, `/new-york`, `/rhode-island`, `/vermont`.
+Pulls public skate, stick & puck, shinny/pickup, and freestyle ice times from ice rinks and shows them in one filterable list. Live at **https://calarink.com**, one page per US state (`/maine`, `/colorado`, `/new-york`, …) and Canadian province (`/ontario`, `/quebec`, `/british-columbia`, …).
 
 ## Run it
 
@@ -19,7 +19,7 @@ Then open http://localhost:5178. The server listens on `127.0.0.1` only. Set `HO
 
 GitHub Pages serves the site at calarink.com; the domain is registered with Cloudflare, whose DNS points at GitHub (records set to DNS only). `.github/workflows/publish.yml` runs `npm run build` every 30 minutes, on every push to `main`, and on demand (Actions tab → Publish → Run workflow). The build pulls every rink once and writes `dist/`: the page, `schedule.json`, and a copy of the page for each state (`dist/maine/index.html`). The published page has no Refresh button; it re-reads `schedule.json` every 10 minutes.
 
-- **Visitor's state (Cloudflare Worker):** calarink.com is proxied through Cloudflare (orange cloud; SSL mode must not be Flexible or GitHub's HTTPS redirect loops). The Worker in [worker/](worker/) adds `<meta name="visitor-region" content="ME">` to each page from Cloudflare's own location data, so a first-time visitor opens their state. A state in the address or the visitor's last pick still wins. Deploy changes with `npx wrangler deploy` from `worker/` (needs `npx wrangler login`).
+- **Visitor's state or province (Cloudflare Worker):** calarink.com is proxied through Cloudflare (orange cloud; SSL mode must not be Flexible or GitHub's HTTPS redirect loops). The Worker in [worker/](worker/) adds `<meta name="visitor-region" content="ME">` to each page from Cloudflare's own location data, so a first-time visitor opens their state. A state in the address or the visitor's last pick still wins. Deploy changes with `npx wrangler deploy` from `worker/` (needs `npx wrangler login`).
 - GitHub renews its HTTPS certificate for calarink.com through the Cloudflare proxy; the current one expires 2026-12-24. If the site ever shows a certificate error after that, check Settings → Pages in the repo.
 - A rink whose site fails keeps its last good copy (the workflow carries `data/` between runs). If every rink fails, the run stops and the old site stays up.
 - GitHub can start scheduled runs late when it's busy, and pauses them after 60 days with no commits. Re-enable from the Actions tab.
@@ -34,6 +34,10 @@ Each rink in [src/rinks.js](src/rinks.js) lists zero or more **sources**:
 | `finnly`   | Reads the JSON schedule embedded in a Finnly Connect page (`<rink>.finnlyconnect.com/schedule/<n>`) | Warrior Ice Arena, Everett Arena, Super Rink, ISCC |
 | `daysmart` | Reads DaySmart Recreation ("Dash") events from the public API the rink's booking page uses. `company` is the slug in the rink's `apps.daysmartrecreation.com/dash/x/#/online/<slug>` links. `resourceIds` keeps only the ice sheets (list them at `api.dashplatform.com/v1/resources?company=<slug>`), which also splits a company that runs several arenas. | Campion Rink, Stamford Twin Rinks |
 | `courtreserve` | Reads a CourtReserve public calendar (`/Online/Public/EmbedCode/<org>/<id>`) over the SignalR connection the calendar page itself uses. `categories` is a pattern for the event categories to include, since multi-sport clubs share one calendar. | Midcoast Recreation Center |
+| `torontoDropIn` | City of Toronto drop-in skating from its open data (the "Drop-in" table of [Registered Programs and Drop In Courses](https://open.toronto.ca/dataset/registered-programs-and-drop-in-courses-offering/)), refreshed weekly about six weeks ahead. `locationId` is the arena's Location ID. | 40 Toronto arenas |
+| `montrealArena` | Reads a City of Montréal arena page (`montreal.ca/lieux/arena-…`): weekly tables of patinage libre, hockey libre, bâton-rondelle and patinage artistique, repeated through each dated period. | 34 Montréal arenas |
+| `classList` | Calgary's drop-in booking pages (`liveandplay.calgary.ca/REGPROG`), one page per category per day. `venue` picks the arena; the pages are shared between arenas during a build. | 11 Calgary arenas |
+| `activenet` | An ActiveNet drop-in calendar (`anc.ca.apm.activecommunities.com/<site>/calendars`). `centerId` picks the rink; list them with `POST <site>/rest/onlinecalendar/filters`. | 8 Vancouver rinks |
 | `pageText` | Reads times from text on the rink's web page ("Monday, September 21st ... 5:20 - 6:20 PM"). With `projectWeekly: N`, lines like "Sundays 3:50 - 4:50 PM" are repeated for N weeks. | Norway Savings Bank Arena |
 | none       | Shown as a "check directly" card with the website and phone number | PDFs, Facebook, and booking widgets that can't be read |
 
@@ -43,11 +47,13 @@ The server caches each source for 30 minutes (in memory and in `data/cache.json`
 
 Sessions are sorted into categories by keywords in their titles ([src/categorize.js](src/categorize.js)). Every session type shows by default, including "Team / private ice" (practices, games, rentals, lessons, closures). The **Filter** button opens a pop-up to pick only some types; once filtered, the sidebar shows a badge for each chosen type and each session shows its type label. Cancelled sessions are always hidden.
 
-## States
+## States and provinces
 
-`STATES` in [src/rinks.js](src/rinks.js) lists the states in the header's state picker, and every rink has a `state` code. A state's `slug` is its address: `calarink.com/maine`, or `?state=maine`. Picking a state updates the address bar; a visitor with no state in the address gets the state they used last, else the one marked `default` (Maine).
+`STATES` in [src/rinks.js](src/rinks.js) lists the US states and Canadian provinces (`country: 'CA'`) in the header's picker, and every rink has a `state` code. A state's `slug` is its address: `calarink.com/maine`, or `?state=maine`. Picking a state updates the address bar; a visitor with no state in the address gets the state they used last, else the one marked `default` (Maine).
 
-Each state has a `tz`. Schedules that give local times with no zone (Finnly, page text) are read in it, and the site shows that state's times in it: Colorado is `America/Denver`, Minnesota `America/Chicago`, Michigan `America/Detroit`, the rest `America/New_York`.
+Each state has a `tz`. Schedules that give local times with no zone (Finnly, page text) are read in it, and the site shows that state's times in it (Colorado is `America/Denver`, Newfoundland `America/St_Johns`, and so on).
+
+Session titles are sorted in English and French (patinage libre, hockey libre, bâton-rondelle) for Québec rinks.
 
 To add a state, add it to `STATES` (for example `{ code: 'VT', slug: 'vermont', name: 'Vermont', tz: 'America/New_York' }`) and give its rinks that `state` code. The build creates its page automatically.
 

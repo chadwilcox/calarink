@@ -115,7 +115,9 @@ function buildStaticControls() {
   const us = currentState();
   fmt = makeFormatters(us.tz || DEFAULT_TZ);
   document.title = `Calarink · ${us.name}`;
-  $('#usState').innerHTML = data.states.map(s => `<option value="${esc(s.code)}" ${s.code === us.code ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+  const option = s => `<option value="${esc(s.code)}" ${s.code === us.code ? 'selected' : ''}>${esc(s.name)}</option>`;
+  $('#usState').innerHTML = [['US', 'United States'], ['CA', 'Canada']]
+    .map(([c, label]) => `<optgroup label="${label}">${data.states.filter(s => (s.country || 'US') === c).map(option).join('')}</optgroup>`).join('');
 
   renderTypeSummary();
 
