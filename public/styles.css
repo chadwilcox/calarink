@@ -66,13 +66,16 @@ a { color: var(--accent); }
 .top { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; }
 .top-inner { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
 h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
-.brand { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 11px; flex: none; }
 .brand-mark { flex: none; display: block; line-height: 0; border-radius: 10px; }
 .brand-mark img { display: block; width: 42px; height: 42px; }
-.wordmark { font-size: 24px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; }
+.wordmark { font-size: 24px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; white-space: nowrap; }
 .wordmark span { color: var(--accent); }
-.top-actions { display: flex; align-items: center; gap: 8px; flex: none; }
-.state-pick select { width: auto; padding: 7px 30px 7px 10px; font-weight: 600; cursor: pointer; }
+/* The brand keeps its size; the picker takes what's left (a select is as wide as its longest
+   option, "Newfoundland and Labrador") and cuts long names short on narrow screens. */
+.top-actions { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; }
+.state-pick { display: block; min-width: 0; }
+.state-pick select { width: auto; max-width: 100%; padding: 7px 30px 7px 10px; font-weight: 600; cursor: pointer; text-overflow: ellipsis; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 520px) {
   .brand-mark img { width: 36px; height: 36px; }
