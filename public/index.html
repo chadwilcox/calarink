@@ -55,8 +55,9 @@
         <select id="region"><option value="">All regions</option></select>
       </section>
       <section>
-        <h2 class="row-between">Rinks <span class="linkbtns"><button class="linkbtn" id="rinksAll">all</button><button class="linkbtn" id="rinksNone">none</button></span></h2>
-        <div id="rinkList" class="rink-list"></div>
+        <h2 class="row-between">Rinks <span class="linkbtns"><button class="linkbtn" id="rinksAll" hidden>all</button><button class="linkbtn" id="rinksNone" hidden>none</button><button class="linkbtn" id="rinksEdit" aria-expanded="false" aria-controls="rinkList">edit</button></span></h2>
+        <button class="rink-summary" id="rinkSummary" type="button"></button>
+        <div id="rinkList" class="rink-list" hidden></div>
       </section>
     </aside>
 

@@ -209,6 +209,10 @@ function wireControls() {
     state.hiddenRinks = e.target.checked ? state.hiddenRinks.filter(x => x !== id) : [...state.hiddenRinks, id];
     commit();
   });
+  // The rink checklist stays folded to a one-line summary until the visitor asks to edit it.
+  const toggleRinks = () => { rinksOpen = !rinksOpen; showRinkList(); };
+  $('#rinksEdit').addEventListener('click', toggleRinks);
+  $('#rinkSummary').addEventListener('click', toggleRinks);
   $('#rinksAll').addEventListener('click', () => { state.hiddenRinks = []; commit(); });
   // Clear every rink in the list (this state and region), then tick the ones you want.
   $('#rinksNone').addEventListener('click', () => {
@@ -263,10 +267,25 @@ function render() {
   renderDirect();
 }
 
+let rinksOpen = false;
+function showRinkList() {
+  $('#rinkList').hidden = !rinksOpen;
+  $('#rinkSummary').hidden = rinksOpen;
+  $('#rinksAll').hidden = $('#rinksNone').hidden = !rinksOpen;
+  $('#rinksEdit').textContent = rinksOpen ? 'done' : 'edit';
+  $('#rinksEdit').setAttribute('aria-expanded', String(rinksOpen));
+}
+
 function renderRinkList(inScope) {
   const counts = {};
   for (const s of inScope) counts[s.rinkId] = (counts[s.rinkId] || 0) + 1;
   const rinks = data.rinks.filter(r => r.live && inArea(r));
+  const shown = rinks.filter(r => !state.hiddenRinks.includes(r.id)).length;
+  const noun = n => `${n} rink${n === 1 ? '' : 's'}`;
+  $('#rinkSummary').textContent = !rinks.length ? 'No rinks with schedules here'
+    : shown === rinks.length ? `All ${noun(rinks.length)}`
+    : shown ? `${shown} of ${noun(rinks.length)}` : 'No rinks selected';
+  showRinkList();
   $('#rinkList').innerHTML = rinks.map(r => {
     const n = counts[r.id] || 0;
     const err = r.status && !r.status.ok;
