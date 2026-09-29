@@ -183,7 +183,15 @@ select { width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-
 .day-head .today-tag { background: var(--accent); color: var(--accent-ink); border-radius: 4px; font-size: 11px; font-weight: 700; padding: 1px 6px; text-transform: uppercase; letter-spacing: .04em; }
 
 .sessions { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-.session { --c: var(--c-other); display: grid; grid-template-columns: 170px minmax(0, 1fr) auto; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--border); align-items: center; border-left: 4px solid var(--c); }
+.session {
+  --c: var(--c-other); display: grid; grid-template-columns: 170px minmax(0, 1fr) auto;
+  grid-template-areas: "time title actions" "time meta actions"; gap: 1px 12px;
+  padding: 10px 14px; border-top: 1px solid var(--border); align-items: center; border-left: 4px solid var(--c);
+}
+.session > .time { grid-area: time; }
+.session > .title { grid-area: title; align-self: end; }
+.session > .meta { grid-area: meta; align-self: start; }
+.session > .actions { grid-area: actions; }
 .session:first-child { border-top: 0; }
 .session.past { opacity: .5; }
 .session.cancelled .title { text-decoration: line-through; }
@@ -195,12 +203,27 @@ select { width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-
 .flag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--surface-2); color: var(--muted); }
 .flag.now { background: var(--now); color: #fff; font-weight: 700; }
 .flag.bad { color: var(--danger); }
+/* Tags sit beside the rink on wide screens and beside the time on phones. */
+.flags-lg, .flags-sm { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.flags-sm { display: none; }
+.where .town { white-space: nowrap; }
 .actions { display: flex; gap: 4px; }
 .iconbtn { background: none; border: 1px solid transparent; border-radius: 6px; padding: 4px 6px; cursor: pointer; color: var(--muted); display: inline-flex; text-decoration: none; }
 .iconbtn:hover { border-color: var(--border); color: var(--text); }
+/* Phones: when, then where, then what — one line each, buttons stacked on the right. */
 @media (max-width: 560px) {
-  .session { grid-template-columns: 1fr auto; }
-  .session .time { grid-column: 1 / -1; }
+  .session { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "time actions" "meta actions" "title actions"; gap: 2px 8px; padding: 10px 10px 10px 12px; }
+  .session > .title, .session > .meta { align-self: auto; }
+  .time { font-size: 15px; font-weight: 700; white-space: normal; }
+  .time .range, .time .dur { white-space: nowrap; }
+  .time .dur { display: inline; font-size: 13px; margin-left: 6px; }
+  .time .dur::before { content: "· "; }
+  .meta { font-size: 14px; }
+  .meta .rink-name { color: var(--text); font-weight: 600; }
+  .title { font-weight: 400; }
+  .actions { flex-direction: column; gap: 2px; }
+  .flags-lg { display: none; }
+  .flags-sm { display: inline-flex; margin-left: 8px; vertical-align: 1px; font-weight: 400; }
 }
 
 .empty { background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius); padding: 28px 20px; text-align: center; color: var(--muted); }

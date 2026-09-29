@@ -30,6 +30,13 @@ function makeFormatters(tz) {
 }
 let fmt = makeFormatters(DEFAULT_TZ);
 
+// "8:00 – 9:00 AM" when both ends share AM/PM; "11:00 AM – 12:30 PM" otherwise.
+function timeRange(start, end) {
+  const a = fmt.time.format(new Date(start)), b = fmt.time.format(new Date(end));
+  const ap = s => (/\s?[AP]M$/i.exec(s) || [''])[0];
+  return ap(a) && ap(a) === ap(b) ? `${a.slice(0, -ap(a).length)} – ${b}` : `${a} – ${b}`;
+}
+
 let data = null;
 let pageBase = null; // site root that state pages hang off: '/' on calarink.com
 const state = loadState();
@@ -317,12 +324,11 @@ function renderAgenda(visible, now) {
         s.recurring && '<span class="flag" title="Projected from a weekly schedule posted on the rink\'s site">Weekly (posted)</span>',
         s.fromText && !s.recurring && '<span class="flag" title="Read from text on the rink\'s web page">From rink page</span>',
       ].filter(Boolean).join('');
+      // Title and rink are separate grid cells so phones can show the rink right under the time.
       html += `<div class="session ${end < now ? 'past' : ''} ${s.cancelled ? 'cancelled' : ''}" style="--c:var(--c-${s.category})">
-        <div class="time">${fmt.time.format(new Date(start))} – ${fmt.time.format(new Date(end))}<span class="dur">${dur}</span></div>
-        <div>
-          <div class="title">${esc(s.title)}</div>
-          <div class="meta">${showPills ? `<span class="pill">${esc(catLabel[s.category] || s.category)}</span>` : ''}<span>${esc(rink.name)} · ${esc(rink.town)}</span>${flags}</div>
-        </div>
+        <div class="time"><span class="range">${timeRange(start, end)}</span><span class="dur">${dur}</span>${flags && `<span class="flags-sm">${flags}</span>`}</div>
+        <div class="title">${esc(s.title)}</div>
+        <div class="meta">${showPills ? `<span class="pill">${esc(catLabel[s.category] || s.category)}</span>` : ''}<span class="where"><span class="rink-name">${esc(rink.name)}</span> <span class="town">· ${esc(rink.town)}</span></span>${flags && `<span class="flags-lg">${flags}</span>`}</div>
         <div class="actions">
           <button class="iconbtn" data-ics="${esc(s.id)}" title="Add to my calendar (.ics)" aria-label="Add to calendar"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 16H5V9h14zm-8-9h2v3h3v2h-3v3h-2v-3H8v-2h3z"/></svg></button>
           <a class="iconbtn" href="${esc(rink.scheduleUrl || rink.website)}" target="_blank" rel="noopener" title="Open the rink's schedule page" aria-label="Rink schedule page"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3zm5 16H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2z"/></svg></a>
