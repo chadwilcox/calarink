@@ -243,7 +243,7 @@ function wireControls() {
   $('#rinksAll').addEventListener('click', () => { state.hiddenRinks = []; commit(); });
   // Clear every rink in the list (this state and region), then tick the ones you want.
   $('#rinksNone').addEventListener('click', () => {
-    const shown = data.rinks.filter(r => r.live && inArea(r)).map(r => r.id);
+    const shown = data.rinks.filter(r => listed(r) && inArea(r)).map(r => r.id);
     state.hiddenRinks = [...new Set([...state.hiddenRinks, ...shown])];
     commit();
   });
@@ -259,6 +259,9 @@ function commit() { saveState(); render(); }
 function rinkById(id) { return data.rinks.find(r => r.id === id); }
 // Rink is in the chosen state and region.
 const inArea = r => inState(r) && (!state.region || r.region === state.region);
+// A rink with a schedule we read. One whose calendar has no upcoming times posted (between
+// seasons, say) is left out until it posts some; one we couldn't reach still shows, flagged.
+const listed = r => r.live && !(r.status?.ok && r.status.count === 0);
 
 function baseFilter(s, now, until) {
   const start = Date.parse(s.start), end = Date.parse(s.end);
@@ -306,7 +309,7 @@ function showRinkList() {
 function renderRinkList(inScope) {
   const counts = {};
   for (const s of inScope) counts[s.rinkId] = (counts[s.rinkId] || 0) + 1;
-  const rinks = data.rinks.filter(r => r.live && inArea(r));
+  const rinks = data.rinks.filter(r => listed(r) && inArea(r));
   const shown = rinks.filter(r => !state.hiddenRinks.includes(r.id)).length;
   const noun = n => `${n} rink${n === 1 ? '' : 's'}`;
   $('#rinkSummary').textContent = !rinks.length ? 'No rinks with schedules here'
@@ -328,7 +331,6 @@ function renderSummary(visible) {
   const rinksWith = new Set(visible.map(s => s.rinkId)).size;
   const live = data.rinks.filter(r => r.live && !state.hiddenRinks.includes(r.id) && inArea(r));
   const errored = live.filter(r => r.status && !r.status.ok);
-  const unposted = live.filter(r => r.status?.ok && r.status.count === 0);
   $('#summary').innerHTML = `<span><strong>${visible.length}</strong> session${visible.length === 1 ? '' : 's'} at ${rinksWith} rink${rinksWith === 1 ? '' : 's'}</span>`;
   const link = r => `<a href="${esc(r.website)}" target="_blank" rel="noopener">${esc(r.name)}</a>`;
   const alerts = [];
@@ -338,7 +340,6 @@ function renderSummary(visible) {
       : `You're offline. Showing the schedules saved ${saved}; check with the rink before you drive.`);
   }
   if (errored.length) alerts.push(`Couldn't reach ${errored.map(link).join(', ')} on the last pull${errored.some(r => r.status.count) ? ' (showing the last good copy)' : ''}.`);
-  if (unposted.length) alerts.push(`No upcoming times posted yet by ${unposted.map(link).join(', ')}. Their calendars are empty for now.`);
   const box = document.getElementById('alerts') || Object.assign(document.createElement('div'), { id: 'alerts' });
   box.innerHTML = alerts.map(a => `<div class="alert">${a}</div>`).join('');
   $('#summary').after(box);
