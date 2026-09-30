@@ -96,13 +96,17 @@ h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
 .btn-outline:hover { border-color: var(--accent); }
 .btn-ghost { background: none; color: var(--muted); border: 0; }
 .btn-ghost:hover { color: var(--text); }
-/* "Get the app": just the icon on phones, where the header has room for little else. */
-.install-btn { flex: none; }
-.install-btn[hidden] { display: none; }
-@media (max-width: 520px) {
-  .install-btn { padding: 7px 9px; }
-  .install-btn span { display: none; }
+/* "Free Mobile App": floats at the bottom on phones and tablets until the app is installed.
+   The page gets room below its last session so the button never covers it. */
+.app-fab {
+  position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 6;
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px;
+  padding: 12px 22px; font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(16, 24, 40, .28), 0 1px 3px rgba(16, 24, 40, .2);
 }
+.app-fab[hidden] { display: none; }
+body:has(.app-fab:not([hidden])) { padding-bottom: 84px; }
 .install-steps { margin: 0 0 4px; padding-left: 22px; font-size: 15px; line-height: 1.5; }
 .install-steps li + li { margin-top: 6px; }
 .install-steps svg { vertical-align: -3px; color: var(--accent); }

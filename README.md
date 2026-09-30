@@ -28,8 +28,10 @@ GitHub Pages serves the site at calarink.com; the domain is registered with Clou
 
 calarink.com installs as an app (a progressive web app): it opens full screen from a home-screen icon and keeps the last schedules it loaded, so it still opens with a weak signal at the rink. There's no app store listing.
 
-- **iPhone / iPad:** in Safari, Share (under ••• on newer iPhones) → Add to Home Screen. The site's "Get the app" button shows these steps.
-- **Android and desktop Chrome/Edge:** the "Get the app" button (or the browser's own install prompt) installs it.
+A floating **Free Mobile App** button shows on phones and tablets that don't have it installed yet (not on computers):
+
+- **iPhone / iPad:** the button shows the steps: in Safari, Share (under ••• on newer iPhones) → Add to Home Screen.
+- **Android:** the button opens Chrome's install prompt. Chrome only offers it when the app isn't installed.
 
 [public/manifest.webmanifest](public/manifest.webmanifest) names the app and its icons ([public/icons/](public/icons/), rendered from `logo.svg`). [public/sw.js](public/sw.js) is the service worker: build-stamped files (`app.js?v=…`) come from its cache; the page, `schedule.json` and each state's sessions come from the network, with the last good copy saved for offline. When the page is showing saved copies, it says so. Installed apps update themselves: the next time one opens online it gets the latest page and schedules.
 
