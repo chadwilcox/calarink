@@ -467,6 +467,30 @@ $('#install').addEventListener('click', async () => {
 });
 $('#installDialog').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
+// ---------- counts (calarink.goatcounter.com) ----------
+// GoatCounter's script counts each page load by itself. This adds what it can't see: the app
+// being opened from a home screen, its first launch on a device (the closest thing to an install
+// count that works on iPhones too; the installed app keeps its own storage, apart from the
+// browser's), and state picks, which change the address without loading a page.
+function count(path, title, event = true) {
+  const send = () => window.goatcounter?.count?.({ path, title, event });
+  if (window.goatcounter?.count) send();
+  else document.querySelector('script[data-goatcounter]')?.addEventListener('load', send);
+}
+if (installed) {
+  count('app-opened', 'Opened the app');
+  try {
+    if (!localStorage.getItem('calarink.appSeen')) {
+      localStorage.setItem('calarink.appSeen', '1');
+      count('app-installed', 'App installed (first launch on a device)');
+    }
+  } catch { /* storage blocked: skip the install count */ }
+}
+$('#usState').addEventListener('change', e => {
+  const s = findState(e.target.value);
+  if (s) count(`${pageBase || '/'}${s.slug}/`, `Calarink · ${s.name}`, false); // as the published pages are addressed
+});
+
 const syncHeaderHeight = () => document.documentElement.style.setProperty('--head-h', `${document.querySelector('.top').offsetHeight}px`);
 addEventListener('resize', syncHeaderHeight);
 syncHeaderHeight();

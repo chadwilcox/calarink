@@ -35,6 +35,8 @@ A floating **Free Mobile App** button shows on phones and tablets that don't hav
 
 [public/manifest.webmanifest](public/manifest.webmanifest) names the app and its icons ([public/icons/](public/icons/), rendered from `logo.svg`). [public/sw.js](public/sw.js) is the service worker: build-stamped files (`app.js?v=…`) come from its cache; the page, `schedule.json` and each state's sessions come from the network, with the last good copy saved for offline. When the page is showing saved copies, it says so. Installed apps update themselves: the next time one opens online it gets the latest page and schedules.
 
+**Counts:** [calarink.goatcounter.com](https://calarink.goatcounter.com) (free, no cookies). Page views are counted per state page (`/maine/`); picking a state counts as a view of that state's page. Events: `app-opened` (launched from a home screen), `app-installed` (the first launch on a device; the installed app keeps its own storage, so this works on iPhones too), and `app-button-tapped` (the Free Mobile App button). Visits from `localhost` aren't counted.
+
 ## How it gets the data
 
 Each rink in [src/rinks.js](src/rinks.js) lists zero or more **sources**:
