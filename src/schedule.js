@@ -71,7 +71,7 @@ async function pullSource(rink, source, index, force) {
     const started = Date.now();
     let entry;
     try {
-      const raw = await ADAPTERS[source.type](source, windowRange(TZ_BY_STATE[rink.state] || DEFAULT_TZ));
+      const raw = await ADAPTERS[source.type](source, windowRange(rink.tz || TZ_BY_STATE[rink.state] || DEFAULT_TZ));
       const sessions = raw.map((s, i) => {
         const text = s.categoryText ?? `${s.title} ${s.description || ''}`;
         return {

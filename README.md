@@ -37,7 +37,7 @@ Each rink in [src/rinks.js](src/rinks.js) lists zero or more **sources**:
 | `torontoDropIn` | City of Toronto drop-in skating from its open data (the "Drop-in" table of [Registered Programs and Drop In Courses](https://open.toronto.ca/dataset/registered-programs-and-drop-in-courses-offering/)), refreshed weekly about six weeks ahead. `locationId` is the arena's Location ID. | 40 Toronto arenas |
 | `montrealArena` | Reads a City of Montréal arena page (`montreal.ca/lieux/arena-…`): weekly tables of patinage libre, hockey libre, bâton-rondelle and patinage artistique, repeated through each dated period. | 34 Montréal arenas |
 | `classList` | Calgary's drop-in booking pages (`liveandplay.calgary.ca/REGPROG`), one page per category per day. `venue` picks the arena; the pages are shared between arenas during a build. | 11 Calgary arenas |
-| `activenet` | An ActiveNet drop-in calendar (`anc.ca.apm.activecommunities.com/<site>/calendars`). `centerId` picks the rink; list them with `POST <site>/rest/onlinecalendar/filters`. | 8 Vancouver rinks |
+| `activenet` | An ActiveNet drop-in calendar (`anc.ca.apm.activecommunities.com/<site>/calendars` in Canada, `anc.apm.activecommunities.com/<site>/calendars` in the US). `calendarId` is the page's `defaultCalendarId`; `centerId` picks the rink; list them with `POST <site>/rest/onlinecalendar/filters` and `{"calendar_id": N}`. | 8 Vancouver rinks, Carolina Ice Palace |
 | `pageText` | Reads times from text on the rink's web page ("Monday, September 21st ... 5:20 - 6:20 PM"). With `projectWeekly: N`, lines like "Sundays 3:50 - 4:50 PM" are repeated for N weeks. | Norway Savings Bank Arena |
 | none       | Shown as a "check directly" card with the website and phone number | PDFs, Facebook, and booking widgets that can't be read |
 
@@ -51,7 +51,7 @@ Sessions are sorted into categories by keywords in their titles ([src/categorize
 
 `STATES` in [src/rinks.js](src/rinks.js) lists the US states and Canadian provinces (`country: 'CA'`) in the header's picker, and every rink has a `state` code. A state's `slug` is its address: `calarink.com/maine`, or `?state=maine`. Picking a state updates the address bar; a visitor with no state in the address gets the state they used last, else the one marked `default` (Maine).
 
-Each state has a `tz`. Schedules that give local times with no zone (Finnly, page text) are read in it, and the site shows that state's times in it (Colorado is `America/Denver`, Newfoundland `America/St_Johns`, and so on).
+Each state has a `tz`. Schedules that give local times with no zone (Finnly, page text) are read in it, and the site shows that state's times in it (Colorado is `America/Denver`, Newfoundland `America/St_Johns`, and so on). A rink in a different zone from the rest of its state sets its own `tz` (Dyer, Indiana is `America/Chicago`); its times are read in that zone and shown with the zone marked ("6:00 – 7:30 PM CT").
 
 Session titles are sorted in English and French (patinage libre, hockey libre, bâton-rondelle) for Québec rinks.
 

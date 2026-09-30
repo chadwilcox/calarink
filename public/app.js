@@ -30,11 +30,28 @@ function makeFormatters(tz) {
 }
 let fmt = makeFormatters(DEFAULT_TZ);
 
+// A rink in a different zone from the rest of its state (Dyer, on Chicago time, in Indiana)
+// shows its own local times, marked with the zone: "6:00 – 7:30 PM CT".
+const zoneFmts = new Map();
+function zoneTime(tz) {
+  if (!zoneFmts.has(tz)) zoneFmts.set(tz, new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }));
+  return zoneFmts.get(tz);
+}
+const ZONE_ABBR = { EST: 'ET', EDT: 'ET', CST: 'CT', CDT: 'CT', MST: 'MT', MDT: 'MT', PST: 'PT', PDT: 'PT' };
+
 // "8:00 – 9:00 AM" when both ends share AM/PM; "11:00 AM – 12:30 PM" otherwise.
-function timeRange(start, end) {
-  const a = fmt.time.format(new Date(start)), b = fmt.time.format(new Date(end));
+function timeRange(start, end, tz) {
+  let zone = '', a, b;
+  if (tz && tz !== (currentState().tz || DEFAULT_TZ)) {
+    const f = zoneTime(tz), strip = s => s.replace(/\s+\S+$/, '');
+    const z = f.formatToParts(new Date(start)).find(p => p.type === 'timeZoneName')?.value || '';
+    zone = ` ${ZONE_ABBR[z] || z}`;
+    a = strip(f.format(new Date(start))); b = strip(f.format(new Date(end)));
+  } else {
+    a = fmt.time.format(new Date(start)); b = fmt.time.format(new Date(end));
+  }
   const ap = s => (/\s?[AP]M$/i.exec(s) || [''])[0];
-  return ap(a) && ap(a) === ap(b) ? `${a.slice(0, -ap(a).length)} – ${b}` : `${a} – ${b}`;
+  return (ap(a) && ap(a) === ap(b) ? `${a.slice(0, -ap(a).length)} – ${b}` : `${a} – ${b}`) + zone;
 }
 
 let data = null;
@@ -345,7 +362,7 @@ function renderAgenda(visible, now) {
       ].filter(Boolean).join('');
       // Title and rink are separate grid cells so phones can show the rink right under the time.
       html += `<div class="session ${end < now ? 'past' : ''} ${s.cancelled ? 'cancelled' : ''}" style="--c:var(--c-${s.category})">
-        <div class="time"><span class="range">${timeRange(start, end)}</span><span class="dur">${dur}</span>${flags && `<span class="flags-sm">${flags}</span>`}</div>
+        <div class="time"><span class="range">${timeRange(start, end, rink.tz)}</span><span class="dur">${dur}</span>${flags && `<span class="flags-sm">${flags}</span>`}</div>
         <div class="title">${esc(s.title)}</div>
         <div class="meta">${showPills ? `<span class="pill">${esc(catLabel[s.category] || s.category)}</span>` : ''}<span class="where"><span class="rink-name">${esc(rink.name)}</span> <span class="town">· ${esc(rink.town)}</span></span>${flags && `<span class="flags-lg">${flags}</span>`}</div>
         <div class="actions">
@@ -383,7 +400,7 @@ function downloadIcs(id) {
     `DTSTAMP:${stamp(new Date().toISOString())}`,
     `DTSTART:${stamp(s.start)}`, `DTEND:${stamp(s.end)}`,
     `SUMMARY:${escIcs(`${s.title} @ ${rink.name}`)}`,
-    `LOCATION:${escIcs(rink.address || `${rink.name}, ${rink.town}, ME`)}`,
+    `LOCATION:${escIcs(rink.address || `${rink.name}, ${rink.town}, ${rink.state}`)}`,
     `DESCRIPTION:${escIcs(`Schedule: ${rink.scheduleUrl || rink.website}\nConfirm with the rink before you go.`)}`,
     'END:VEVENT', 'END:VCALENDAR',
   ].join('\r\n');

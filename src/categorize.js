@@ -4,7 +4,7 @@
 export const CATEGORIES = [
   { id: 'closed',     label: 'Closed / maintenance', public: false, re: /\b(closed|ice maintenance|no ice|hold)\b|\bferm[ée]/i },
   { id: 'stick-puck', label: 'Stick & Puck',         public: true,  re: /sticks?\s*(&|and|n'?|\+|,)?\s*pucks?|stick\s*(time|practice)|open\s*stick|b[âa]ton[\s-]*rondelle/i },
-  { id: 'public',     label: 'Public Skate',         public: true,  re: /public\s*skat|open\s*skat|family\s*skate|community\s*skate|sponsored\s*skate|adult\s*skate\b|rock'?\s*n'?\s*skate|skate\s*with|public\s*session|leisure\s*skat|discount\s*(public\s*)?skate|and\s*better\s*skate|senior\s*skate|patin(age)?\s*libre/i },
+  { id: 'public',     label: 'Public Skate',         public: true,  re: /public\s*(ice\s*)?skat|open\s*skat|family\s*skate|community\s*skate|sponsored\s*skate|adult\s*skate\b|rock'?\s*n'?\s*skate|skate\s*with|public\s*session|leisure\s*skat|discount\s*(public\s*)?skate|and\s*better\s*skate|senior\s*skate|patin(age)?\s*libre/i },
   { id: 'shinny',     label: 'Shinny / Pickup',      public: true,  re: /shinny|pick[\s-]?up|drop[\s-]?in|open\s*hockey|public\s*hockey|rat\s*hockey|family\s*(fun\s*)?hockey|hockey\s*libre/i },
   { id: 'freestyle',  label: 'Freestyle',            public: true,  re: /freestyle|free\s*style|figure\s*open|open\s*figure|figure\s*skating\s*open|public\s*figure|patinage\s*artistique/i },
   { id: 'lts',        label: 'Learn to Skate',       public: false, re: /learn\s*to\s*(skate|play)|\blts\b/i },
