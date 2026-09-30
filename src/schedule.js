@@ -53,6 +53,16 @@ function tidyTitle(t) {
     .trim();
 }
 
+// A session's id is its address in a shared link (calarink.com/maine/?event=<id>), so it must
+// stay the same while the session does: the rink, the start time and a short hash of the title
+// ("usm-gorham.20261003T1700.k3f9"), never its position in the rink's calendar, which shifts
+// whenever the rink adds or removes something.
+function sessionId(rinkId, start, title) {
+  let h = 2166136261; // FNV-1a
+  for (const c of title.toLowerCase()) h = Math.imul(h ^ c.codePointAt(0), 16777619);
+  return `${rinkId}.${start.toISOString().slice(0, 16).replace(/[-:]/g, '')}.${(h >>> 0).toString(36).slice(0, 4)}`;
+}
+
 // From the start of today in the rink's time zone. `tz` goes to the adapters too, for
 // schedules that give local times with no zone.
 function windowRange(tz) {
@@ -72,10 +82,10 @@ async function pullSource(rink, source, index, force) {
     let entry;
     try {
       const raw = await ADAPTERS[source.type](source, windowRange(rink.tz || TZ_BY_STATE[rink.state] || DEFAULT_TZ));
-      const sessions = raw.map((s, i) => {
+      const sessions = raw.map(s => {
         const text = s.categoryText ?? `${s.title} ${s.description || ''}`;
         return {
-          id: `${key}#${i}`,
+          id: sessionId(rink.id, s.start, tidyTitle(s.title) || 'Ice time'),
           rinkId: rink.id,
           title: tidyTitle(s.title) || 'Ice time',
           description: s.description || '',
@@ -107,7 +117,9 @@ export async function getSchedule({ force = false } = {}) {
     const sources = rink.sources || [];
     const entries = await Promise.all(sources.map((s, i) => pullSource(rink, s, i, force)));
     const errors = entries.filter(e => e.error).map(e => e.error);
-    const sessions = entries.flatMap(e => e.sessions || []).filter(s => Date.parse(s.end) >= now - 6 * 60 * 60 * 1000);
+    const seen = new Map(); // the same title at the same time twice (two sheets): number the repeats
+    const sessions = entries.flatMap(e => e.sessions || []).filter(s => Date.parse(s.end) >= now - 6 * 60 * 60 * 1000)
+      .map(s => { const n = (seen.get(s.id) || 0) + 1; seen.set(s.id, n); return n > 1 ? { ...s, id: `${s.id}-${n}` } : s; });
     const { sources: _omit, ...meta } = rink;
     return {
       rink: {

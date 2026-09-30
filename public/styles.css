@@ -106,6 +106,30 @@ h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
   box-shadow: 0 6px 20px rgba(16, 24, 40, .28), 0 1px 3px rgba(16, 24, 40, .2);
 }
 .app-fab[hidden] { display: none; }
+
+/* One session: tap a card for its details (share, add to calendar, rink, directions). */
+.session[data-event] { cursor: pointer; }
+.session[data-event]:hover { background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
+.event-body { position: relative; padding: 20px 20px 16px; }
+.event-close { position: absolute; top: 8px; right: 8px; font-size: 18px; line-height: 1; padding: 8px 10px; }
+.event-when { margin: 0 0 4px; color: var(--accent); font-weight: 700; font-size: 14px; padding-right: 32px; }
+.event-modal h2 { font-size: 20px; margin: 0 0 8px; padding-right: 32px; }
+.event-where { margin: 0 0 16px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.event-where strong { color: var(--text); }
+.event-where .pill { display: inline-block; margin-top: 6px; }
+.event-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.event-actions .btn, .event-actions .btn-outline { justify-content: center; text-decoration: none; padding-top: 10px; padding-bottom: 10px; }
+.event-actions .wide { grid-column: 1 / -1; }
+.event-note { font-size: 12.5px; margin: 14px 0 0; }
+.event-body:focus { outline: none; } /* focused on open, so the close button isn't */
+.event-label { margin: 6px 0 -2px; font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.event-label svg { width: 16px; height: 16px; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 20;
+  background: var(--text); color: var(--surface); padding: 9px 16px; border-radius: 999px; font-size: 14px; font-weight: 600;
+  box-shadow: 0 6px 20px rgba(16, 24, 40, .25); white-space: nowrap;
+}
+.toast[hidden] { display: none; }
 body:has(.app-fab:not([hidden])) { padding-bottom: 84px; }
 .install-steps { margin: 0 0 4px; padding-left: 22px; font-size: 15px; line-height: 1.5; }
 .install-steps li + li { margin-top: 6px; }

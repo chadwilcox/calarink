@@ -55,6 +55,7 @@ function timeRange(start, end, tz) {
 }
 
 let data = null;
+let linkOpened = false; // a shared session link has been opened
 let pageBase = null; // site root that state pages hang off: '/' on calarink.com
 const state = loadState();
 
@@ -96,6 +97,12 @@ async function load(refresh = false) {
     }
     buildStaticControls();
     render();
+    // A shared session link (calarink.com/maine/?event=<id>) opens that session, once.
+    if (!linkOpened) {
+      linkOpened = true;
+      const id = new URLSearchParams(location.search).get('event');
+      if (id) openSession(id, { fromLink: true });
+    }
   } catch (err) {
     // A failed background refresh keeps what's on screen; only say so if there's nothing to show.
     if (!data) $('#agenda').innerHTML = `<div class="empty"><strong>Couldn't load schedules.</strong>${esc(err.message)}. Try reloading the page.</div>`;
@@ -249,7 +256,10 @@ function wireControls() {
   });
   $('#refresh').addEventListener('click', () => load(true));
   $('#agenda').addEventListener('click', e => {
-    const b = e.target.closest('[data-ics]'); if (b) downloadIcs(b.dataset.ics);
+    // Share shares; anything else on a session (the calendar button included) opens its details.
+    const sh = e.target.closest('[data-share]'); if (sh) return shareSession(sh.dataset.share);
+    if (e.target.closest('a')) return;
+    const card = e.target.closest('[data-event]'); if (card) openSession(card.dataset.event);
   });
 }
 
@@ -377,13 +387,13 @@ function renderAgenda(visible, now) {
         s.fromText && !s.recurring && '<span class="flag" title="Read from text on the rink\'s web page">From rink page</span>',
       ].filter(Boolean).join('');
       // Title and rink are separate grid cells so phones can show the rink right under the time.
-      html += `<div class="session ${end < now ? 'past' : ''} ${s.cancelled ? 'cancelled' : ''}" style="--c:var(--c-${s.category})">
+      html += `<div class="session ${end < now ? 'past' : ''} ${s.cancelled ? 'cancelled' : ''}" data-event="${esc(s.id)}" style="--c:var(--c-${s.category})">
         <div class="time"><span class="range">${timeRange(start, end, rink.tz)}</span><span class="dur">${dur}</span>${flags && `<span class="flags-sm">${flags}</span>`}</div>
         <div class="title">${esc(s.title)}</div>
         <div class="meta">${showPills ? `<span class="pill">${esc(catLabel[s.category] || s.category)}</span>` : ''}<span class="where"><span class="rink-name">${esc(rink.name)}</span> <span class="town">· ${esc(rink.town)}</span></span>${flags && `<span class="flags-lg">${flags}</span>`}</div>
         <div class="actions">
-          <button class="iconbtn" data-ics="${esc(s.id)}" title="Add to my calendar (.ics)" aria-label="Add to calendar"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 16H5V9h14zm-8-9h2v3h3v2h-3v3h-2v-3H8v-2h3z"/></svg></button>
-          <a class="iconbtn" href="${esc(rink.scheduleUrl || rink.website)}" target="_blank" rel="noopener" title="Open the rink's schedule page" aria-label="Rink schedule page"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3zm5 16H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2z"/></svg></a>
+          <button class="iconbtn" data-share="${esc(s.id)}" title="Share this session" aria-label="Share"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 21 5a3 3 0 1 0-5.91.7L8.04 9.81A3 3 0 1 0 6 15a3 3 0 0 0 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65A2.92 2.92 0 1 0 18 16.08"/></svg></button>
+          <button class="iconbtn" data-open="${esc(s.id)}" title="Add to my calendar" aria-label="Add to calendar"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 16H5V9h14zm-8-9h2v3h3v2h-3v3h-2v-3H8v-2h3z"/></svg></button>
         </div>
       </div>`;
     }
@@ -404,20 +414,107 @@ function renderDirect() {
     </div></div>`).join('');
 }
 
-// ---------- add to calendar ----------
-function downloadIcs(id) {
-  const s = data.sessions.find(x => x.id === id); if (!s) return;
+// ---------- one session: details, share, add to calendar ----------
+// Each session has its own link (calarink.com/maine/?event=<id>) that opens these details, so it
+// can be shared. The id stays the same as long as the session does (see sessionId in schedule.js).
+const sessionById = id => data?.sessions?.find(x => x.id === id);
+const stateOfRink = rink => data.states.find(x => x.code === rink.state) || currentState();
+const sessionUrl = s => new URL(`${pageBase || '/'}${stateOfRink(rinkById(s.rinkId)).slug}/?event=${encodeURIComponent(s.id)}`, location.origin).href;
+const whereOf = rink => rink.address || `${rink.name}, ${rink.town}, ${rink.state}`;
+const whenOf = s => `${fmt.dayHead.format(new Date(s.start))} · ${timeRange(Date.parse(s.start), Date.parse(s.end), rinkById(s.rinkId).tz)}`;
+const icsStamp = iso => iso.replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+const ICONS = {
+  share: 'M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 21 5a3 3 0 1 0-5.91.7L8.04 9.81A3 3 0 1 0 6 15a3 3 0 0 0 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65A2.92 2.92 0 1 0 18 16.08',
+  calendar: 'M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 16H5V9h14zm-8-9h2v3h3v2h-3v3h-2v-3H8v-2h3z',
+  open: 'M14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3zm5 16H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2z',
+  map: 'M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7m0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5',
+};
+const icon = name => `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="${ICONS[name]}"/></svg>`;
+
+function openSession(id, { fromLink = false } = {}) {
+  const s = sessionById(id);
+  const dialog = $('#eventDialog');
+  if (!s) {
+    // A shared link to a session that's over, or that the rink changed: point at the rink instead.
+    const rink = rinkById(String(id).split('.')[0]);
+    $('#eventBody').innerHTML = `<h2 id="eventTitle">This session isn't listed anymore</h2>
+      <p class="muted">It may have already happened, or ${rink ? esc(rink.name) : 'the rink'} changed its schedule.
+      ${rink ? 'Here are its other times, or check the rink directly.' : 'Browse the other times below.'}</p>
+      <div class="event-actions">${rink ? `<a class="btn-outline wide" href="${esc(rink.scheduleUrl || rink.website)}" target="_blank" rel="noopener">${icon('open')}<span>${esc(rink.name)}'s schedule</span></a>` : ''}
+      <button type="button" class="btn wide" data-close>Browse ice times</button></div>`;
+    dialog.showModal();
+    return;
+  }
   const rink = rinkById(s.rinkId);
-  const stamp = iso => iso.replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const catLabel = data.categories.find(c => c.id === s.category)?.label || '';
+  $('#eventBody').innerHTML = `
+    <p class="event-when">${esc(whenOf(s))}</p>
+    <h2 id="eventTitle">${esc(s.title)}</h2>
+    ${s.cancelled ? '<p><span class="flag bad">Cancelled</span></p>' : ''}
+    <p class="event-where"><strong>${esc(rink.name)}</strong> · ${esc(rink.town)}${rink.address ? `<br>${esc(rink.address.replace(/, [A-Z]{2}$/, ''))}` : ''}
+      ${catLabel ? `<br><span class="pill" style="--c:var(--c-${s.category})">${esc(catLabel)}</span>` : ''}</p>
+    <div class="event-actions">
+      <button type="button" class="btn wide" data-share="${esc(s.id)}">${icon('share')}<span>Share</span></button>
+      <p class="event-label wide">${icon('calendar')} Add to calendar</p>
+      <button type="button" class="btn-outline" data-ics="${esc(s.id)}" title="Apple Calendar, Outlook and most other calendar apps">Apple / Outlook</button>
+      <a class="btn-outline" href="${esc(googleCalendarUrl(s))}" target="_blank" rel="noopener" data-gcal>Google</a>
+      <a class="btn-outline" href="${esc(rink.scheduleUrl || rink.website)}" target="_blank" rel="noopener">${icon('open')}<span>Rink's schedule</span></a>
+      <a class="btn-outline" href="${esc(directionsUrl(rink))}" target="_blank" rel="noopener">${icon('map')}<span>Directions</span></a>
+    </div>
+    <p class="muted event-note">Times come from the rink's own calendar and can change. Confirm with the rink before you go.</p>`;
+  if (fromLink) count('event-link-opened', 'Opened a shared session link');
+  dialog.showModal();
+}
+
+function closeSession() {
+  $('#eventDialog').close();
+  // Opened from a shared link: back to the plain state address, so a reload doesn't reopen it.
+  if (new URLSearchParams(location.search).has('event')) history.replaceState(null, '', location.pathname);
+}
+
+async function shareSession(id) {
+  const s = sessionById(id); if (!s) return;
+  const rink = rinkById(s.rinkId);
+  const url = sessionUrl(s);
+  const text = `${s.title} at ${rink.name} (${rink.town}), ${whenOf(s)}. Found on Calarink: ice times from every rink, free on your phone.`;
+  if (navigator.share) {
+    try { await navigator.share({ title: `${s.title} at ${rink.name}`, text, url }); count('event-shared', 'Shared a session'); } catch { /* closed the share sheet */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${url}`);
+    count('event-shared', 'Shared a session');
+    toast('Link copied. Paste it anywhere to share.');
+  } catch { window.prompt('Copy this link to share it:', url); }
+}
+
+function googleCalendarUrl(s) {
+  const rink = rinkById(s.rinkId);
+  const q = new URLSearchParams({
+    action: 'TEMPLATE', text: `${s.title} @ ${rink.name}`, dates: `${icsStamp(s.start)}/${icsStamp(s.end)}`,
+    location: whereOf(rink), details: `${sessionUrl(s)}\nConfirm with the rink before you go. Found on Calarink.`,
+  });
+  return `https://calendar.google.com/calendar/render?${q}`;
+}
+
+function directionsUrl(rink) {
+  const q = encodeURIComponent(whereOf(rink));
+  return isIOS ? `https://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+
+function downloadIcs(id) {
+  const s = sessionById(id); if (!s) return;
+  const rink = rinkById(s.rinkId);
   const escIcs = t => String(t).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
   const ics = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Calarink//EN', 'BEGIN:VEVENT',
     `UID:${s.id.replace(/[^\w-]/g, '-')}@calarink.com`,
-    `DTSTAMP:${stamp(new Date().toISOString())}`,
-    `DTSTART:${stamp(s.start)}`, `DTEND:${stamp(s.end)}`,
+    `DTSTAMP:${icsStamp(new Date().toISOString())}`,
+    `DTSTART:${icsStamp(s.start)}`, `DTEND:${icsStamp(s.end)}`,
     `SUMMARY:${escIcs(`${s.title} @ ${rink.name}`)}`,
-    `LOCATION:${escIcs(rink.address || `${rink.name}, ${rink.town}, ${rink.state}`)}`,
-    `DESCRIPTION:${escIcs(`Schedule: ${rink.scheduleUrl || rink.website}\nConfirm with the rink before you go.`)}`,
+    `LOCATION:${escIcs(whereOf(rink))}`,
+    `URL:${sessionUrl(s)}`,
+    `DESCRIPTION:${escIcs(`${sessionUrl(s)}\nRink schedule: ${rink.scheduleUrl || rink.website}\nConfirm with the rink before you go. Found on Calarink.`)}`,
     'END:VEVENT', 'END:VCALENDAR',
   ].join('\r\n');
   const a = Object.assign(document.createElement('a'), {
@@ -426,7 +523,27 @@ function downloadIcs(id) {
   });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  count('added-to-calendar', 'Added a session to a calendar');
 }
+
+let toastTimer;
+function toast(message) {
+  const el = $('#toast');
+  el.textContent = message;
+  // Inside the open dialog, or the dialog (drawn on top of everything) would hide it.
+  ($('#eventDialog').open ? $('#eventDialog') : document.body).append(el);
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+}
+
+$('#eventDialog').addEventListener('click', e => {
+  if (e.target === e.currentTarget || e.target.closest('.event-close, [data-close]')) return closeSession();
+  const sh = e.target.closest('[data-share]'); if (sh) return shareSession(sh.dataset.share);
+  const ics = e.target.closest('[data-ics]'); if (ics) return downloadIcs(ics.dataset.ics);
+  if (e.target.closest('[data-gcal]')) count('added-to-calendar', 'Added a session to a calendar');
+});
+$('#eventDialog').addEventListener('cancel', e => { e.preventDefault(); closeSession(); }); // Esc key
 
 // ---------- install as an app, and offline ----------
 // sw.js keeps the page and the last schedules loaded, so the installed app opens without a signal.
