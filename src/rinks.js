@@ -1315,7 +1315,7 @@ export const RINKS = [
     town: 'Marietta', state: 'GA', region: 'Metro Atlanta',
     address: '2600 Prado Ln, Marietta, GA', phone: '404-800-2150',
     website: 'https://atlantaicehouse.com/',
-    sources: [{ type: 'ics', url: gcal('aihiceschedule@gmail.com') }],
+    sources: [{ type: 'ics', url: gcal('aihiceschedule@gmail.com'), timeoutMs: 120000 }],
     note: 'Full rink calendar.',
   },
   {

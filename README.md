@@ -24,6 +24,15 @@ GitHub Pages serves the site at calarink.com; the domain is registered with Clou
 - A rink whose site fails keeps its last good copy (the workflow carries `data/` between runs). If every rink fails, the run stops and the old site stays up.
 - GitHub can start scheduled runs late when it's busy, and pauses them after 60 days with no commits. Re-enable from the Actions tab.
 
+## Phone and tablet app
+
+calarink.com installs as an app (a progressive web app): it opens full screen from a home-screen icon and keeps the last schedules it loaded, so it still opens with a weak signal at the rink. There's no app store listing.
+
+- **iPhone / iPad:** in Safari, Share (under ••• on newer iPhones) → Add to Home Screen. The site's "Get the app" button shows these steps.
+- **Android and desktop Chrome/Edge:** the "Get the app" button (or the browser's own install prompt) installs it.
+
+[public/manifest.webmanifest](public/manifest.webmanifest) names the app and its icons ([public/icons/](public/icons/), rendered from `logo.svg`). [public/sw.js](public/sw.js) is the service worker: build-stamped files (`app.js?v=…`) come from its cache; the page, `schedule.json` and each state's sessions come from the network, with the last good copy saved for offline. When the page is showing saved copies, it says so. Installed apps update themselves: the next time one opens online it gets the latest page and schedules.
+
 ## How it gets the data
 
 Each rink in [src/rinks.js](src/rinks.js) lists zero or more **sources**:

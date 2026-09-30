@@ -80,6 +80,7 @@ async function load(refresh = false) {
     // Relative, so it works both from the local server and from a GitHub Pages subpath.
     const res = await fetch(`schedule.json${refresh ? '?refresh=1' : ''}`, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    offline = res.headers.get('X-Calarink-Saved') === '1'; // sw.js served its saved copy
     const next = await res.json();
     // The published site keeps each state's sessions in its own file (sessions/maine.json), so a
     // visitor downloads only the state they're looking at. The local server sends everything.
@@ -87,7 +88,12 @@ async function load(refresh = false) {
     data = next;
     btn.hidden = !!data.static; // the published site is rebuilt on a schedule; there's no server to refresh
     if (pageBase === null) applyUrlState();
-    if (!data.sessions) await loadStateSessions();
+    if (!data.sessions) {
+      try { await loadStateSessions(); } catch (err) {
+        if (!offline) throw err;
+        unsavedState = currentState().name; data.sessions = []; // opened offline on a state never saved here
+      }
+    }
     buildStaticControls();
     render();
   } catch (err) {
@@ -217,7 +223,11 @@ function wireControls() {
   $('#usState').addEventListener('change', async e => {
     setUsState(e.target.value);
     if (data.static) {
-      try { await loadStateSessions(); } catch { load(); return; }
+      unsavedState = null;
+      try { await loadStateSessions(); } catch {
+        if (!offline && navigator.onLine) { load(); return; }
+        unsavedState = currentState().name; data.sessions = []; // offline, and this state was never saved here
+      }
     }
     buildStaticControls(); render();
   });
@@ -322,6 +332,11 @@ function renderSummary(visible) {
   $('#summary').innerHTML = `<span><strong>${visible.length}</strong> session${visible.length === 1 ? '' : 's'} at ${rinksWith} rink${rinksWith === 1 ? '' : 's'}</span>`;
   const link = r => `<a href="${esc(r.website)}" target="_blank" rel="noopener">${esc(r.name)}</a>`;
   const alerts = [];
+  if (offline || unsavedState) {
+    const saved = new Date(data.generatedAt).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    alerts.push(unsavedState ? `You're offline, and ${esc(unsavedState)} hasn't been saved on this device yet. Connect to load it.`
+      : `You're offline. Showing the schedules saved ${saved}; check with the rink before you drive.`);
+  }
   if (errored.length) alerts.push(`Couldn't reach ${errored.map(link).join(', ')} on the last pull${errored.some(r => r.status.count) ? ' (showing the last good copy)' : ''}.`);
   if (unposted.length) alerts.push(`No upcoming times posted yet by ${unposted.map(link).join(', ')}. Their calendars are empty for now.`);
   const box = document.getElementById('alerts') || Object.assign(document.createElement('div'), { id: 'alerts' });
@@ -411,6 +426,40 @@ function downloadIcs(id) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+// ---------- install as an app, and offline ----------
+// sw.js keeps the page and the last schedules loaded, so the installed app opens without a signal.
+let offline = false;     // the schedules on screen are sw.js's saved copy
+let unsavedState = null; // a state picked while offline that this device never saved
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('sw.js').then(async () => {
+    // The first visit loads its schedules before the worker is running; ask it to save them.
+    if (navigator.serviceWorker.controller) return;
+    const reg = await navigator.serviceWorker.ready;
+    const waitForData = () => data?.states ? Promise.resolve() : new Promise(r => setTimeout(() => r(waitForData()), 500));
+    await waitForData();
+    reg.active?.postMessage({ type: 'save', urls: [location.href, 'schedule.json', ...(data.static ? [`sessions/${currentState().slug}.json`] : [])] });
+  }).catch(() => {});
+}
+addEventListener('online', () => { unsavedState = null; load(); });
+addEventListener('offline', () => { offline = true; if (data) render(); });
+
+// "Get the app": Chrome and Edge (Android, desktop) offer their own install prompt; on an iPhone
+// or iPad the only way is Safari's Share → Add to Home Screen, so the button shows how.
+const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+let installPrompt = null;
+if (!installed && isIOS) $('#install').hidden = false;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('#install').hidden = false; });
+addEventListener('appinstalled', () => { installPrompt = null; $('#install').hidden = true; });
+$('#install').addEventListener('click', async () => {
+  if (!installPrompt) { $('#installDialog').showModal(); return; }
+  installPrompt.prompt();
+  await installPrompt.userChoice;
+  $('#install').hidden = true; // installed, or not now: the browser offers it again later
+  installPrompt = null;
+});
+$('#installDialog').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 const syncHeaderHeight = () => document.documentElement.style.setProperty('--head-h', `${document.querySelector('.top').offsetHeight}px`);
 addEventListener('resize', syncHeaderHeight);

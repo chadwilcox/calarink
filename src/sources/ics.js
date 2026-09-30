@@ -31,7 +31,8 @@ function trimToWindow(text, from, to) {
 }
 
 export async function fetchIcs(source, { from, to }) {
-  const text = trimToWindow(await fetchText(source.url), from, to);
+  // `timeoutMs` for a feed that is slow to download (years of history in one file).
+  const text = trimToWindow(await fetchText(source.url, { timeoutMs: source.timeoutMs }), from, to);
   const root = new ICAL.Component(ICAL.parse(text));
 
   for (const tz of root.getAllSubcomponents('vtimezone')) {
