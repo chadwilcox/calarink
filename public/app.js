@@ -256,7 +256,7 @@ function wireControls() {
   });
   $('#refresh').addEventListener('click', () => load(true));
   $('#agenda').addEventListener('click', e => {
-    // Share shares; anything else on a session (the calendar button included) opens its details.
+    // Share shares; anything else on a session opens its details (add to calendar is in there).
     const sh = e.target.closest('[data-share]'); if (sh) return shareSession(sh.dataset.share);
     if (e.target.closest('a')) return;
     const card = e.target.closest('[data-event]'); if (card) openSession(card.dataset.event);
@@ -393,7 +393,6 @@ function renderAgenda(visible, now) {
         <div class="meta">${showPills ? `<span class="pill">${esc(catLabel[s.category] || s.category)}</span>` : ''}<span class="where"><span class="rink-name">${esc(rink.name)}</span> <span class="town">· ${esc(rink.town)}</span></span>${flags && `<span class="flags-lg">${flags}</span>`}</div>
         <div class="actions">
           <button class="iconbtn" data-share="${esc(s.id)}" title="Share this session" aria-label="Share"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11A2.99 2.99 0 0 0 21 5a3 3 0 1 0-5.91.7L8.04 9.81A3 3 0 1 0 6 15a3 3 0 0 0 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65A2.92 2.92 0 1 0 18 16.08"/></svg></button>
-          <button class="iconbtn" data-open="${esc(s.id)}" title="Add to my calendar" aria-label="Add to calendar"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 16H5V9h14zm-8-9h2v3h3v2h-3v3h-2v-3H8v-2h3z"/></svg></button>
         </div>
       </div>`;
     }
