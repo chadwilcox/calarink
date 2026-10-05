@@ -564,17 +564,31 @@ addEventListener('offline', () => { offline = true; if (data) render(); });
 // "Free Mobile App" floats on phones and tablets that don't have the app yet. On Android, Chrome
 // offers its own install prompt only when the app isn't installed; on an iPhone or iPad the only
 // way is Safari's Share → Add to Home Screen, so the button shows how. Not shown on computers.
+// Inside another app's browser (Facebook and so on) it shows on both, and points to Safari or Chrome.
 const installed = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
 const isAndroid = /Android/.test(navigator.userAgent);
+// Facebook, Instagram, Messenger, TikTok and the like open links in their own browser, which can't
+// install an app (on Android, beforeinstallprompt never fires there). The button still shows, and
+// sends the visitor to Safari or Chrome first.
+const inApp = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Messenger|Snapchat|musical_ly|TikTok|BytedanceWebview|LinkedInApp|Pinterest|Line\//i.test(navigator.userAgent);
 let installPrompt = null;
-if (!installed && isIOS) $('#install').hidden = false;
+if (!installed && (isIOS || (isAndroid && inApp))) $('#install').hidden = false;
+if (inApp) {
+  const browser = isIOS ? 'Safari' : isAndroid ? 'Chrome' : 'your browser';
+  document.querySelectorAll('#inAppDialog [data-browser]').forEach(el => { el.textContent = browser; });
+  const here = location.href.replace(/^https?:\/\//, '');
+  $('#openInBrowser').href = isAndroid
+    ? `intent://${here}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(location.href)};end`
+    : isIOS ? `x-safari-https://${here}` : location.href;
+}
 addEventListener('beforeinstallprompt', e => {
   if (!isAndroid) return; // desktop Chrome and Edge keep their own install icon in the address bar
   e.preventDefault(); installPrompt = e; $('#install').hidden = false;
 });
 addEventListener('appinstalled', () => { installPrompt = null; $('#install').hidden = true; });
 $('#install').addEventListener('click', async () => {
+  if (inApp) { $('#inAppDialog').showModal(); return; }
   if (!installPrompt) { $('#installDialog').showModal(); return; }
   installPrompt.prompt();
   await installPrompt.userChoice;
@@ -582,6 +596,7 @@ $('#install').addEventListener('click', async () => {
   installPrompt = null;
 });
 $('#installDialog').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+$('#inAppDialog').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); });
 
 // ---------- counts (calarink.goatcounter.com) ----------
 // GoatCounter's script counts each page load by itself. This adds what it can't see: the app

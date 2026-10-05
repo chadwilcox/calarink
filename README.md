@@ -32,6 +32,7 @@ A floating **Free Mobile App** button shows on phones and tablets that don't hav
 
 - **iPhone / iPad:** the button shows the steps: in Safari, Share (under ••• on newer iPhones) → Add to Home Screen.
 - **Android:** the button opens Chrome's install prompt. Chrome only offers it when the app isn't installed.
+- **Inside Facebook, Instagram, Messenger, TikTok and other apps' built-in browsers:** those can't install an app, so the button explains how to open Calarink in Safari or Chrome, with an **Open in Safari/Chrome** link that does it where the app allows (an `intent://` link on Android, `x-safari-https://` on iPhone). The in-app browser is spotted from its user agent (`FBAN`, `FBAV`, `Instagram`, …).
 
 [public/manifest.webmanifest](public/manifest.webmanifest) names the app and its icons ([public/icons/](public/icons/), rendered from `logo.svg`). [public/sw.js](public/sw.js) is the service worker: build-stamped files (`app.js?v=…`) come from its cache; the page, `schedule.json` and each state's sessions come from the network, with the last good copy saved for offline. When the page is showing saved copies, it says so. Installed apps update themselves: the next time one opens online it gets the latest page and schedules.
 

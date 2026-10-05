@@ -131,6 +131,21 @@
     </form>
   </dialog>
 
+  <dialog id="inAppDialog" class="modal" aria-labelledby="inAppDialogTitle">
+    <form method="dialog">
+      <h2 id="inAppDialogTitle">Open Calarink in <span data-browser>your browser</span> first</h2>
+      <p class="muted">You're viewing Calarink inside another app, which can't add it to your home screen. Open it in <span data-browser>your browser</span>, then tap <strong>Free Mobile App</strong> there.</p>
+      <ol class="install-steps">
+        <li>Tap the <strong>•••</strong> menu (top or bottom corner of the screen).</li>
+        <li>Tap <strong>Open in <span data-browser>browser</span></strong> (or <strong>Open in external browser</strong>).</li>
+      </ol>
+      <div class="modal-actions">
+        <button value="close" class="btn btn-ghost">Close</button>
+        <a id="openInBrowser" class="btn" href="#">Open in <span data-browser>browser</span></a>
+      </div>
+    </form>
+  </dialog>
+
   <script src="app.js" type="module"></script>
 </body>
 </html>
