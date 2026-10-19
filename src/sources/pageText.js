@@ -25,7 +25,7 @@ export function htmlToLines(html) {
   return text.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
 }
 
-function parseTimeRange(line) {
+export function parseTimeRange(line) {
   const m = TIME_RANGE_RE.exec(line);
   if (!m) return null;
   const [, h1, m1 = '0', ap1, h2, m2 = '0', ap2] = m;

@@ -13,9 +13,11 @@ import { fetchTorontoDropIn } from './sources/torontoDropIn.js';
 import { fetchClassList } from './sources/classList.js';
 import { fetchMontrealArena } from './sources/montrealArena.js';
 import { fetchActiveNet } from './sources/activenet.js';
+import { fetchMyRec, fetchMyRecProgram } from './sources/myrec.js';
 
 const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart, courtreserve: fetchCourtReserve,
   torontoDropIn: fetchTorontoDropIn, classList: fetchClassList, montrealArena: fetchMontrealArena, activenet: fetchActiveNet,
+  myrec: fetchMyRec, myrecProgram: fetchMyRecProgram,
 };
 const TZ_BY_STATE = Object.fromEntries(STATES.map(s => [s.code, s.tz || DEFAULT_TZ]));
 const CACHE_TTL_MS = 30 * 60 * 1000;

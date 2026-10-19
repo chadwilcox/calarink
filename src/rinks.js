@@ -9,6 +9,8 @@
 //   'pageText' – schedule posted as text on a web page (dated lines, optional weekly lines)
 //   'daysmart' – DaySmart Recreation (Dash) booking API
 //   'courtreserve' – CourtReserve public calendar; `categories` picks the ice categories by name
+//   'myrec'    – MyRec town rec calendar (Learn to Skate and other programs) for one facility
+//   'myrecProgram' – a MyRec program page that posts a weekly timetable (public skate, stick & puck)
 //   none       – no machine-readable schedule; shown as a "check directly" card
 //
 // To add a rink, append an entry. `id` must be unique and stable (it's used in the URL filters).
@@ -178,6 +180,23 @@ export const RINKS = [
     }],
     note: "Ice programs from the club calendar (hockey, figure skating and skating categories). Arena rentals aren't shown.",
   },
+  {
+    id: 'sawyer-bangor',
+    name: 'Sawyer Arena',
+    town: 'Bangor', state: 'ME', region: 'Northern & Downeast',
+    address: '107 13th St, Bangor, ME', phone: '207-947-0071',
+    website: 'https://www.bangormaine.gov/676/Sawyer-Arena',
+    scheduleUrl: 'https://bangorme.myrec.com/info/activities/program_details.aspx?ProgramID=29198',
+    sources: [
+      // Public skate, figure skate and stick & puck: a weekly timetable on the season's program page
+      // (a new ProgramID each season: Programs -> Sawyer "Ice" Arena on bangorme.myrec.com).
+      { type: 'myrecProgram', site: 'https://bangorme.myrec.com', programId: 29198, projectWeekly: 8,
+        titles: { 'Figure Skate': 'Figure Skate (Freestyle)' } },
+      // Learn to Skate and other programs from Bangor Parks & Rec's calendar
+      { type: 'myrec', site: 'https://bangorme.myrec.com', facilityId: 8710 },
+    ],
+    note: 'Times from Bangor Parks & Rec (bangorme.myrec.com). Public skate $3 weekdays, $5 weekends; cash or check; no rental skates.',
+  },
 
   // ---- No machine-readable schedule: shown as "check directly" ----
   {
@@ -194,14 +213,6 @@ export const RINKS = [
     town: 'Lewiston', state: 'ME', region: 'Central',
     address: '190 Birch St, Lewiston, ME', phone: '207-783-2009',
     website: 'https://www.thecolisee.com/',
-  },
-  {
-    id: 'sawyer-bangor',
-    name: 'Sawyer Arena',
-    town: 'Bangor', state: 'ME', region: 'Northern & Downeast',
-    address: '107 13th St, Bangor, ME', phone: '207-947-0071',
-    website: 'https://www.bangormaine.gov/676/Sawyer-Arena',
-    note: 'Closed for the off-season; reopens October 2026. Public skate times are posted as PDFs on Bangor Parks & Rec (bangorme.myrec.com) and Facebook.',
   },
   {
     id: 'biddeford',
