@@ -255,6 +255,11 @@ function wireControls() {
     commit();
   });
   $('#refresh').addEventListener('click', () => load(true));
+  $('#navFilter').addEventListener('click', () => showFilterSheet(!document.body.classList.contains('filters-open')));
+  $('#filtersDone').addEventListener('click', () => showFilterSheet(false));
+  $('#sheetBackdrop').addEventListener('click', () => showFilterSheet(false));
+  addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('filters-open') && !document.querySelector('dialog[open]')) showFilterSheet(false); });
+  phoneLayout.addEventListener('change', () => { if (!phoneLayout.matches) showFilterSheet(false); });
   $('#agenda').addEventListener('click', e => {
     // Share shares; anything else on a session opens its details (add to calendar is in there).
     const sh = e.target.closest('[data-share]'); if (sh) return shareSession(sh.dataset.share);
@@ -264,6 +269,25 @@ function wireControls() {
 }
 
 function commit() { saveState(); render(); }
+
+// ---------- phones: filters in a sheet that slides up from the bottom bar ----------
+const phoneLayout = matchMedia('(max-width: 860px)'); // matches the breakpoint in styles.css
+function showFilterSheet(open) {
+  document.body.classList.toggle('filters-open', open);
+  $('#sheetBackdrop').hidden = !open;
+  $('#navFilter').setAttribute('aria-expanded', String(open));
+  if (open) $('#filtersDone').focus({ preventScroll: true });
+}
+
+// How many filters differ from the defaults, shown on the bar's Filter button.
+function renderFilterCount() {
+  const rinks = data.rinks.filter(r => listed(r) && inArea(r));
+  const n = [typesFiltered(), state.days !== 14, state.dow.length > 0, !!state.region,
+    rinks.some(r => state.hiddenRinks.includes(r.id))].filter(Boolean).length;
+  $('#navFilterCount').textContent = n;
+  $('#navFilterCount').hidden = !n;
+  $('#navFilter').setAttribute('aria-label', n ? `Filter, ${n} on` : 'Filter');
+}
 
 // ---------- filtering ----------
 function rinkById(id) { return data.rinks.find(r => r.id === id); }
@@ -305,6 +329,7 @@ function render() {
   renderSummary(visible);
   renderAgenda(visible, now);
   renderDirect();
+  renderFilterCount();
 }
 
 let rinksOpen = false;

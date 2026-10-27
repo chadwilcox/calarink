@@ -175,7 +175,55 @@ body:has(.app-fab:not([hidden])) { padding-bottom: 84px; }
 
 /* Filters */
 .filters { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 16px 12px; box-shadow: var(--shadow); position: sticky; top: calc(var(--head-h, 70px) + 12px); max-height: calc(100vh - var(--head-h, 70px) - 24px); overflow: auto; }
-@media (max-width: 860px) { .filters { position: static; max-height: none; } }
+.sheet-head { display: none; }
+.bottom-nav { display: none; }
+.sheet-backdrop { position: fixed; inset: 0; z-index: 8; background: rgba(10, 16, 24, .45); }
+.sheet-backdrop[hidden] { display: none; }
+/* Phones and small tablets: the filters leave the page for a sheet that slides up from the bottom
+   bar's Filter button, so the sessions start at the top of the screen. */
+@media (max-width: 860px) {
+  :root { --nav-h: 58px; }
+  .filters {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 9;
+    max-height: 85vh; max-height: 85dvh; overflow: auto; overscroll-behavior: contain;
+    border-radius: 16px 16px 0 0; border-bottom: 0; padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 30px rgba(16, 24, 40, .2);
+    transform: translateY(100%); visibility: hidden; transition: transform .25s ease, visibility 0s .25s;
+  }
+  body.filters-open { overflow: hidden; }
+  body.filters-open .filters { transform: none; visibility: visible; transition: transform .25s ease; }
+  .sheet-head {
+    display: flex; justify-content: space-between; align-items: center;
+    position: sticky; top: 0; z-index: 1; background: var(--surface);
+    padding: 18px 0 12px; border-bottom: 1px solid var(--border);
+  }
+  .sheet-head::before { content: ""; position: absolute; top: 7px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--border); }
+  .filters .sheet-head h2 { font-size: 18px; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0; }
+
+  .bottom-nav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 7;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .bottom-nav button {
+    flex: 1; height: var(--nav-h); position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    background: none; border: 0; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .bottom-nav button:hover, .bottom-nav button[aria-expanded="true"] { color: var(--accent); }
+  .nav-count {
+    position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+    font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+  }
+  .nav-count[hidden] { display: none; }
+
+  body { padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px)); }
+  body:has(.app-fab:not([hidden])) { padding-bottom: calc(var(--nav-h) + 72px + env(safe-area-inset-bottom, 0px)); }
+  .app-fab { bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(var(--nav-h) + 80px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .filters { transition: none !important; } }
 .filters section { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .filters section:last-child { border-bottom: 0; }
 .filters h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 700; }

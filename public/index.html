@@ -44,7 +44,11 @@
   </header>
 
   <main class="wrap layout">
-    <aside class="filters" aria-label="Filters">
+    <aside class="filters" id="filters" aria-label="Filters">
+      <div class="sheet-head">
+        <h2>Filters</h2>
+        <button type="button" class="btn" id="filtersDone">Done</button>
+      </div>
       <section>
         <h2 class="row-between">Session type <button class="linkbtn" id="typesReset" hidden>show all</button></h2>
         <div id="typeSummary" class="type-summary"></div>
@@ -85,6 +89,17 @@
       </section>
     </section>
   </main>
+
+  <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+
+  <!-- Phones: the filters live in a sheet that slides up from this bar. -->
+  <nav class="bottom-nav" aria-label="Quick actions">
+    <button type="button" id="navFilter" aria-controls="filters" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3 5h18v2H3zm3 6h12v2H6zm4 6h4v2h-4z"/></svg>
+      <span>Filter</span>
+      <span class="nav-count" id="navFilterCount" hidden></span>
+    </button>
+  </nav>
 
   <footer class="wrap foot muted">
     <strong>Calarink</strong> · Schedules are pulled from each rink's own website and change often. Confirm with the rink before you drive.
