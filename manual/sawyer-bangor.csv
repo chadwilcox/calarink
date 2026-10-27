@@ -1,0 +1,25 @@
+# Sawyer Arena week 2 (Oct 25-31, 2026), from the arena scheduler's weekly graphic.
+# Public skate and figure skate come from MyRec already, so they aren't repeated here.
+date,start,end,title,hide
+2026-10-27,3:00 PM,4:00 PM,Stick & Puck: Bantams & older,
+2026-10-27,4:10 PM,5:10 PM,Stick & Puck: Peewees & younger,
+2026-10-27,5:20 PM,6:20 PM,Maine Jr. Black Bears: 10U T3 UBE / Chick Fil A,
+2026-10-27,6:30 PM,7:30 PM,Maine Jr. Black Bears: 12U T3 Garden Shed / 14U T3 OBC,
+2026-10-28,3:00 PM,4:00 PM,Stick & Puck: Bantams & older,
+2026-10-28,4:10 PM,5:10 PM,Stick & Puck: Peewees & younger,
+2026-10-28,5:20 PM,6:20 PM,Maine Jr. Black Bears: 8U,
+2026-10-28,6:30 PM,7:30 PM,Maine Jr. Black Bears: 10U Haley Ward / The Fitch Co.,
+2026-10-28,7:40 PM,8:40 PM,Maine Jr. Black Bears: 12U Harvest Moon,
+2026-10-29,3:00 PM,4:00 PM,Stick & Puck: Bantams & older,
+2026-10-29,4:10 PM,5:10 PM,Stick & Puck: Peewees & younger,
+2026-10-29,5:20 PM,6:20 PM,Maine Jr. Black Bears: 8U,
+2026-10-29,6:30 PM,7:30 PM,Maine Jr. Black Bears: 10U T3 UBE / Chick Fil A,
+2026-10-29,7:40 PM,8:40 PM,Maine Jr. Black Bears: 12U T3 Garden Shed / 14U T3 OBC,
+2026-10-30,3:00 PM,4:00 PM,Stick & Puck: Bantams & older,
+2026-10-30,4:10 PM,5:10 PM,Stick & Puck: Peewees & younger,
+2026-10-31,7:30 AM,8:30 AM,Maine Jr. Black Bears: 1st Strides,
+2026-10-31,8:40 AM,9:40 AM,Maine Jr. Black Bears: Learn to Play / Learn to Skate,
+2026-10-31,9:50 AM,10:50 AM,Maine Jr. Black Bears: Atoms,
+# MyRec lists late-morning stick & puck these days; the scheduler's graphic doesn't.
+2026-10-27,11:15 AM,,,x
+2026-10-29,11:15 AM,,,x

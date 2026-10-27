@@ -14,6 +14,7 @@ import { fetchClassList } from './sources/classList.js';
 import { fetchMontrealArena } from './sources/montrealArena.js';
 import { fetchActiveNet } from './sources/activenet.js';
 import { fetchMyRec, fetchMyRecProgram } from './sources/myrec.js';
+import { readManual } from './manual.js';
 
 const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart, courtreserve: fetchCourtReserve,
   torontoDropIn: fetchTorontoDropIn, classList: fetchClassList, montrealArena: fetchMontrealArena, activenet: fetchActiveNet,
@@ -73,6 +74,35 @@ function windowRange(tz) {
   return { from, to: new Date(from.getTime() + WINDOW_DAYS * DAY_MS), tz };
 }
 
+const rinkTz = rink => rink.tz || TZ_BY_STATE[rink.state] || DEFAULT_TZ;
+
+function toSession(rink, s) {
+  const text = s.categoryText ?? `${s.title} ${s.description || ''}`;
+  return {
+    id: sessionId(rink.id, s.start, tidyTitle(s.title) || 'Ice time'),
+    rinkId: rink.id,
+    title: tidyTitle(s.title) || 'Ice time',
+    description: s.description || '',
+    category: categorize(text),
+    cancelled: isCancelled(`${s.title} ${s.description || ''}`),
+    start: s.start.toISOString(),
+    end: s.end.toISOString(),
+    fromText: !!s.fromText,
+    recurring: !!s.recurring,
+  };
+}
+
+// Hand-entered times (manual/<rink id>.csv) join the rink's pulled ones. A pulled session the file
+// hides is dropped; a hand-entered one the rink's own calendar now has too (same kind of ice,
+// starting within 15 minutes) is dropped, so the rink's copy wins.
+function mergeManual(rink, pulled, manual) {
+  const hidden = new Set(manual.hide);
+  const kept = pulled.filter(s => !hidden.has(Date.parse(s.start)));
+  const added = manual.add.map(s => ({ ...toSession(rink, s), manual: true }))
+    .filter(m => !kept.some(p => p.category === m.category && Math.abs(Date.parse(p.start) - Date.parse(m.start)) <= 15 * 60 * 1000));
+  return [...kept, ...added].sort((a, b) => a.start.localeCompare(b.start));
+}
+
 async function pullSource(rink, source, index, force) {
   const key = `${rink.id}#${index}`;
   const hit = cache.get(key);
@@ -83,22 +113,8 @@ async function pullSource(rink, source, index, force) {
     const started = Date.now();
     let entry;
     try {
-      const raw = await ADAPTERS[source.type](source, windowRange(rink.tz || TZ_BY_STATE[rink.state] || DEFAULT_TZ));
-      const sessions = raw.map(s => {
-        const text = s.categoryText ?? `${s.title} ${s.description || ''}`;
-        return {
-          id: sessionId(rink.id, s.start, tidyTitle(s.title) || 'Ice time'),
-          rinkId: rink.id,
-          title: tidyTitle(s.title) || 'Ice time',
-          description: s.description || '',
-          category: categorize(text),
-          cancelled: isCancelled(`${s.title} ${s.description || ''}`),
-          start: s.start.toISOString(),
-          end: s.end.toISOString(),
-          fromText: !!s.fromText,
-          recurring: !!s.recurring,
-        };
-      });
+      const raw = await ADAPTERS[source.type](source, windowRange(rinkTz(rink)));
+      const sessions = raw.map(s => toSession(rink, s));
       entry = { fetchedAt: Date.now(), ms: Date.now() - started, sessions };
     } catch (err) {
       // Keep the last good data if we have it, but surface the error.
@@ -117,16 +133,19 @@ export async function getSchedule({ force = false } = {}) {
   const now = Date.now();
   const rinkResults = await Promise.all(RINKS.map(async rink => {
     const sources = rink.sources || [];
-    const entries = await Promise.all(sources.map((s, i) => pullSource(rink, s, i, force)));
+    const [entries, manual] = await Promise.all([
+      Promise.all(sources.map((s, i) => pullSource(rink, s, i, force))),
+      readManual(rink.id, rinkTz(rink)),
+    ]);
     const errors = entries.filter(e => e.error).map(e => e.error);
     const seen = new Map(); // the same title at the same time twice (two sheets): number the repeats
-    const sessions = entries.flatMap(e => e.sessions || []).filter(s => Date.parse(s.end) >= now - 6 * 60 * 60 * 1000)
+    const sessions = mergeManual(rink, entries.flatMap(e => e.sessions || []), manual).filter(s => Date.parse(s.end) >= now - 6 * 60 * 60 * 1000)
       .map(s => { const n = (seen.get(s.id) || 0) + 1; seen.set(s.id, n); return n > 1 ? { ...s, id: `${s.id}-${n}` } : s; });
     const { sources: _omit, ...meta } = rink;
     return {
       rink: {
         ...meta,
-        live: sources.length > 0,
+        live: sources.length > 0 || manual.add.length > 0,
         sourceTypes: [...new Set(sources.map(s => s.type))],
         status: sources.length ? {
           ok: errors.length === 0,

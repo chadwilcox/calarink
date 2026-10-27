@@ -77,6 +77,22 @@ Session titles are sorted in English and French (patinage libre, hockey libre, b
 
 To add a state, add it to `STATES` (for example `{ code: 'VT', slug: 'vermont', name: 'Vermont', tz: 'America/New_York' }`) and give its rinks that `state` code. The build creates its page automatically.
 
+## Adding times by hand
+
+When a rink's own calendar leaves things out (a scheduler sends a weekly graphic, say), put the times in `manual/<rink id>.csv` ([manual/sawyer-bangor.csv](manual/sawyer-bangor.csv) is an example). Edit it on GitHub's website if you like: saving it publishes the site in a few minutes.
+
+```
+date,start,end,title,hide
+2026-10-28,3:00 PM,4:00 PM,Stick & Puck: Bantams & older,
+2026-10-29,11:15 AM,,,x
+```
+
+- Each row is one session, sorted into a session type by its title like any other (`Stick & Puck`, `Public Skate`, `Learn to Skate`; anything else is team / private ice). Past rows drop off by themselves.
+- A row with anything in `hide` removes the session the rink's calendar has starting at that date and time (one the rink cancelled but never took down). It needs only the date and start.
+- If the rink's own calendar later has the same kind of ice starting within 15 minutes of a row, the site shows the rink's copy only.
+- Lines starting with `#` are notes. A title with a comma goes in double quotes.
+- A rink id is the `id` in [src/rinks.js](src/rinks.js). A rink with no other source shows its hand-entered times too.
+
 ## Adding a rink
 
 1. Find how the rink publishes its schedule. In the page source (and its schedule pages), look for `calendar.google.com/calendar/embed?src=...` (the ID goes into `gcal('...')`; embed IDs are sometimes base64), `finnlyconnect.com/schedule/<n>`, or `daysmartrecreation.com/dash/x/#/online/<slug>`, or a CourtReserve `/Online/Public/EmbedCode/<org>/<id>` calendar.
