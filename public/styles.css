@@ -262,6 +262,9 @@ select { width: 100%; padding: 7px 8px; border: 1px solid var(--border); border-
 /* Results */
 .summary { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; margin: 0 0 12px; color: var(--muted); font-size: 14px; }
 .summary strong { color: var(--text); font-size: 16px; }
+.summary .share-list { margin-left: auto; align-self: center; padding: 5px 11px; font-size: 13px; }
+.summary .share-list svg { width: 15px; height: 15px; }
+@media (max-width: 860px) { .summary .share-list { display: none; } } /* the bottom bar has Share */
 .alert { background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border)); color: var(--text); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
 
 .day { margin-bottom: 18px; }

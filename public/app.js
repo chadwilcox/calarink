@@ -13,6 +13,7 @@ const TYPE_INFO = {
 };
 const STORE_KEY = 'maine-rink-times:v1'; // pre-Calarink name, kept so returning visitors keep their filters
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -102,6 +103,10 @@ async function load(refresh = false) {
       linkOpened = true;
       const id = new URLSearchParams(location.search).get('event');
       if (id) openSession(id, { fromLink: true });
+      else if (sharedListOpened) {
+        toast(`Showing a shared list. ${phoneLayout.matches ? 'Tap Filter' : 'Use the filters'} to change it.`);
+        count('list-link-opened', 'Opened a shared list link');
+      }
     }
   } catch (err) {
     // A failed background refresh keeps what's on screen; only say so if there's nothing to show.
@@ -137,6 +142,74 @@ function applyUrlState() {
   const pick = findState(new URLSearchParams(location.search).get('state')) || fromPath
     || findState(state.usState) || findState(visitorRegion) || currentState();
   if (pick.code !== state.usState) setUsState(pick.code, { updateUrl: false });
+  applyUrlFilters();
+}
+
+// A shared list carries its filters in the address (calarink.com/maine/?types=stick-puck&days=7
+// &dow=6,0&region=…&rinks=…). Opening one shows that list and keeps it as the visitor's filters;
+// the filters then come off the address, so a reload or a later share starts from what's on screen.
+const FILTER_KEYS = ['types', 'days', 'dow', 'region', 'rinks'];
+let sharedListOpened = false;
+function applyUrlFilters() {
+  const q = new URLSearchParams(location.search);
+  if (!FILTER_KEYS.some(k => q.has(k))) return;
+  const list = k => (q.get(k) || '').split(',').filter(Boolean);
+  const types = ALL_TYPES.filter(t => list('types').includes(t));
+  state.types = types.length ? types : ALL_TYPES;
+  state.typesChosen = types.length > 0;
+  state.days = [1, 7, 14, 30, 120].includes(+q.get('days')) ? +q.get('days') : 14;
+  state.dow = [...new Set(list('dow').map(Number).filter(d => d >= 0 && d < 7))];
+  const region = q.get('region') || '';
+  state.region = data.rinks.some(r => inState(r) && r.region === region) ? region : '';
+  const rinks = list('rinks');
+  state.hiddenRinks = rinks.length ? data.rinks.filter(r => inState(r) && !rinks.includes(r.id)).map(r => r.id) : [];
+  saveState();
+  sharedListOpened = true;
+  for (const k of FILTER_KEYS) q.delete(k);
+  history.replaceState(null, '', location.pathname + (q.size ? `?${q}` : ''));
+}
+
+// The address that opens the list on screen, filters and all.
+function listUrl() {
+  const q = new URLSearchParams();
+  if (typesFiltered()) q.set('types', state.types.join(','));
+  if (state.days !== 14) q.set('days', state.days);
+  if (state.dow.length) q.set('dow', [...state.dow].sort().join(','));
+  if (state.region) q.set('region', state.region);
+  const rinks = data.rinks.filter(r => listed(r) && inArea(r));
+  if (rinks.some(r => state.hiddenRinks.includes(r.id))) q.set('rinks', rinks.filter(r => !state.hiddenRinks.includes(r.id)).map(r => r.id).join(','));
+  const qs = q.toString().replace(/%2C/g, ',');
+  return new URL(`${pageBase || '/'}${currentState().slug}/${qs ? `?${qs}` : ''}`, location.origin).href;
+}
+
+// "Stick & Puck and Public Skate in Southern Maine, next 7 days, Saturdays and Sundays"
+function listDescription() {
+  const types = typesFiltered() ? typeList().filter(t => state.types.includes(t.id)).map(t => t.label) : ['Ice times'];
+  const and = a => a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a.at(-1)}` : a[0];
+  const days = { 1: 'today', 7: 'next 7 days', 14: 'next 14 days', 30: 'next 30 days', 120: 'all upcoming' }[state.days];
+  const dow = state.dow.length ? `, ${and([...state.dow].sort((a, b) => (a + 6) % 7 - (b + 6) % 7).map(d => `${DAY_NAMES[d]}s`))}` : '';
+  const rinks = data.rinks.filter(r => listed(r) && inArea(r));
+  const shown = rinks.filter(r => !state.hiddenRinks.includes(r.id));
+  const where = shown.length < rinks.length
+    ? (shown.length <= 2 ? `at ${and(shown.map(r => r.name))}` : `at ${shown.length} rinks in ${state.region || currentState().name}`)
+    : `in ${state.region || currentState().name}`;
+  return `${and(types)} ${where}, ${days}${dow}`;
+}
+
+async function shareList() {
+  const url = listUrl();
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: `Calarink · ${currentState().name}`, text: `${listDescription()}. Found on Calarink: ice times from every rink, free on your phone.`, url });
+      count('list-shared', 'Shared a filtered list');
+    } catch { /* closed the share sheet */ }
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    count('list-shared', 'Shared a filtered list');
+    toast('Link copied. It opens this list, filters and all.');
+  } catch { window.prompt('Copy this link to share this list:', url); }
 }
 
 function setUsState(code, { updateUrl = true } = {}) {
@@ -255,6 +328,8 @@ function wireControls() {
     commit();
   });
   $('#refresh').addEventListener('click', () => load(true));
+  $('#summary').addEventListener('click', e => { if (e.target.closest('[data-share-list]')) shareList(); });
+  $('#navShare').addEventListener('click', shareList);
   $('#navFilter').addEventListener('click', () => showFilterSheet(!document.body.classList.contains('filters-open')));
   $('#filtersDone').addEventListener('click', () => showFilterSheet(false));
   $('#sheetBackdrop').addEventListener('click', () => showFilterSheet(false));
@@ -366,7 +441,8 @@ function renderSummary(visible) {
   const rinksWith = new Set(visible.map(s => s.rinkId)).size;
   const live = data.rinks.filter(r => r.live && !state.hiddenRinks.includes(r.id) && inArea(r));
   const errored = live.filter(r => r.status && !r.status.ok);
-  $('#summary').innerHTML = `<span><strong>${visible.length}</strong> session${visible.length === 1 ? '' : 's'} at ${rinksWith} rink${rinksWith === 1 ? '' : 's'}</span>`;
+  $('#summary').innerHTML = `<span><strong>${visible.length}</strong> session${visible.length === 1 ? '' : 's'} at ${rinksWith} rink${rinksWith === 1 ? '' : 's'}</span>
+    <button type="button" class="btn-outline share-list" data-share-list title="Share a link to this list, with these filters">${icon('share')}<span>Share this list</span></button>`;
   const link = r => `<a href="${esc(r.website)}" target="_blank" rel="noopener">${esc(r.name)}</a>`;
   const alerts = [];
   if (offline || unsavedState) {
