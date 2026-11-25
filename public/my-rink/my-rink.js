@@ -231,7 +231,7 @@ $('#manage').addEventListener('click', async e => {
     b.disabled = true;
     try {
       await api(`/rinks/r/${current.id}/${act === 'publish' ? 'changes' : act}`, act === 'publish' ? { add: drafts, remove: [...removing] } : {});
-      toast(act === 'publish' ? 'Published. New times appear within about 30 minutes; cancellations within a minute or two.' : act === 'confirm' ? 'Thanks, confirmed.' : 'Undone.');
+      toast(act === 'publish' ? 'Published. New times can take several hours to appear. Cancellations show within a minute or two.' : act === 'confirm' ? 'Thanks, confirmed.' : 'Undone.');
       await reload();
     } catch (err) { toast(err.message); b.disabled = false; }
     return;
