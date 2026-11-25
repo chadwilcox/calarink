@@ -13,6 +13,16 @@ routes = [
 MAIL_FROM = "noreply@calarink.com"
 # Secrets (npx wrangler secret put ...): ADMIN_EMAIL, IP_SALT
 
+# Per network; a full page of clips and posters is well under this
+[[ratelimits]]
+name = "LIMIT"
+namespace_id = "5178"
+simple = { limit = 600, period = 60 }
+
+# No single request may run away (it normally needs a few ms)
+[limits]
+cpu_ms = 200
+
 # Cloudflare Email Sending, enabled for calarink.com
 [[send_email]]
 name = "EMAIL"

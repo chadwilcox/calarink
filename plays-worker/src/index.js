@@ -30,6 +30,8 @@ export default {
   async fetch(req, env, ctx) {
     try {
       const url = new URL(req.url);
+      // First, before anything that costs: one network's flood stops here.
+      if (!(await env.LIMIT.limit({ key: network(req) })).success) throw bad('Too many requests. Wait a minute.', 429);
       // Cookies are SameSite=Lax; this also refuses any change sent by another site's page.
       const origin = req.headers.get('Origin');
       if (!['GET', 'HEAD'].includes(req.method) && origin !== url.origin && !(env.DEV === '1' && origin === env.DEV_ORIGIN)) throw bad('Not allowed', 403);
@@ -70,8 +72,7 @@ async function route(req, env, ctx, url) {
 const cookie = (req, name) => new RegExp(`(?:^|;\\s*)${name}=([0-9a-f]{64})(?:;|$)`).exec(req.headers.get('Cookie') || '')?.[1];
 const setCookie = (name, value, days) => `${name}=${value}; Path=/plays-api; Max-Age=${days * DAY}; HttpOnly; Secure; SameSite=Lax`;
 
-function saltedIp(req, env) {
-  if (!env.IP_SALT) throw new Error('IP_SALT secret missing');
+function network(req) {
   let ip = req.headers.get('CF-Connecting-IP') || 'unknown';
   // One home or phone holds a whole IPv6 /64, so the address is cut to that.
   if (ip.includes(':')) {
@@ -79,7 +80,11 @@ function saltedIp(req, env) {
     const full = tail ? [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill('0'), ...tail] : head;
     ip = full.slice(0, 4).map(x => x.replace(/^0+(?=.)/, '')).join(':');
   }
-  return sha(`${env.IP_SALT}:${ip}`);
+  return ip;
+}
+function saltedIp(req, env) {
+  if (!env.IP_SALT) throw new Error('IP_SALT secret missing');
+  return sha(`${env.IP_SALT}:${network(req)}`);
 }
 const normEmail = s => {
   const e = String(s || '').trim().toLowerCase();
@@ -189,19 +194,25 @@ const tellAdmin = (env, ctx, subject, text) => env.ADMIN_EMAIL && ctx.waitUntil(
 
 // ---------- the contest ----------
 
+let weeksCache = { at: 0, current: '', weeks: [] }; // past weeks rarely change, so each server copy looks once a minute
+async function pastWeeks(env, current) {
+  if (now() - weeksCache.at > 60 || weeksCache.current !== current) {
+    const { results } = await env.DB.prepare("SELECT DISTINCT week FROM clips WHERE status = 'approved' AND week <= ? ORDER BY week DESC LIMIT 60").bind(current).all();
+    weeksCache = { at: now(), current, weeks: results.map(w => w.week) };
+  }
+  return weeksCache.weeks;
+}
 async function listPlays(req, env, url) {
   const current = weekOf();
   const week = url.searchParams.get('week') || current;
   if (!/^\d{4}-\d\d-\d\d$/.test(week) || week > current) throw bad('No such week', 404);
   const device = cookie(req, 'cp_d');
-  const { results } = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.rink_id AS rink,
-      (SELECT COUNT(*) FROM votes v WHERE v.clip_id = c.id) AS votes,
+  const { results } = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.rink_id AS rink, c.votes,
       EXISTS (SELECT 1 FROM votes v WHERE v.clip_id = c.id AND v.device = ?2) AS voted
     FROM clips c WHERE c.status = 'approved' AND c.week = ?1
-    ORDER BY votes DESC, c.approved_at, c.id LIMIT ?3`)
+    ORDER BY c.votes DESC, c.approved_at, c.id LIMIT ?3`)
     .bind(week, device ? await sha(device) : '', week === current ? 200 : TOP).all();
-  const weeks = await env.DB.prepare("SELECT DISTINCT week FROM clips WHERE status = 'approved' AND week <= ? ORDER BY week DESC LIMIT 60").bind(current).all();
-  return json({ week, current, weeks: [...new Set([current, ...weeks.results.map(w => w.week)])], plays: results.map(r => ({ ...r, voted: !!r.voted })) });
+  return json({ week, current, weeks: [...new Set([current, ...await pastWeeks(env, current)])], plays: results.map(r => ({ ...r, voted: !!r.voted })) });
 }
 
 async function publicClip(env, id) {
@@ -216,16 +227,17 @@ async function vote(req, env, id) {
   if (clip.week !== weekOf()) throw bad('Voting for that week is over');
   const token = cookie(req, 'cp_d') || random(32);
   const device = await sha(token), ip = await saltedIp(req, env);
+  const retotal = env.DB.prepare('UPDATE clips SET votes = (SELECT COUNT(*) FROM votes WHERE clip_id = ?1) WHERE id = ?1').bind(id);
   if (on) {
-    const r = await env.DB.prepare(`INSERT OR IGNORE INTO votes (clip_id, device, ip, created_at)
-      SELECT ?1, ?2, ?3, ?4 WHERE (SELECT COUNT(*) FROM votes WHERE clip_id = ?1 AND ip = ?3) < ?5`).bind(id, device, ip, now(), VOTES_PER_NETWORK).run();
+    const [r] = await env.DB.batch([env.DB.prepare(`INSERT OR IGNORE INTO votes (clip_id, device, ip, created_at)
+      SELECT ?1, ?2, ?3, ?4 WHERE (SELECT COUNT(*) FROM votes WHERE clip_id = ?1 AND ip = ?3) < ?5`).bind(id, device, ip, now(), VOTES_PER_NETWORK), retotal]);
     if (!r.meta.changes && !await env.DB.prepare('SELECT 1 FROM votes WHERE clip_id = ? AND device = ?').bind(id, device).first()) {
       throw bad('This network has used all its votes for this clip', 429);
     }
   } else {
-    await env.DB.prepare('DELETE FROM votes WHERE clip_id = ? AND device = ?').bind(id, device).run();
+    await env.DB.batch([env.DB.prepare('DELETE FROM votes WHERE clip_id = ? AND device = ?').bind(id, device), retotal]);
   }
-  const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM votes WHERE clip_id = ?').bind(id).first();
+  const n = await env.DB.prepare('SELECT votes AS n FROM clips WHERE id = ?').bind(id).first();
   return json({ votes: n.n, voted: !!on }, 200, { 'Set-Cookie': setCookie('cp_d', token, 400) });
 }
 
@@ -350,8 +362,22 @@ async function media(req, env, id, ext) {
     if (!u || (u.id !== c.user_id && !isAdmin(env, u))) throw bad('Not found', 404);
   }
   const key = `${id}.${ext}`;
-  const info = await env.CLIPS.head(key);
-  if (!info) throw bad('Not found', 404);
+  // Safari won't play video without byte ranges. One storage read per request, so it stays cheap.
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get('Range') || '');
+  let range;
+  if (m && m[1]) {
+    const offset = Number(m[1]);
+    if (m[2] && Number(m[2]) < offset) return new Response(null, { status: 416 });
+    range = m[2] ? { offset, length: Number(m[2]) - offset + 1 } : { offset };
+  } else if (m && Number(m[2])) range = { suffix: Number(m[2]) };
+  let obj;
+  try {
+    obj = req.method === 'HEAD' ? await env.CLIPS.head(key) : await env.CLIPS.get(key, { range });
+  } catch (err) {
+    if (range) return new Response(null, { status: 416 }); // starts past the end
+    throw err;
+  }
+  if (!obj) throw bad('Not found', 404);
   const headers = {
     'Content-Type': ext === 'mp4' ? 'video/mp4' : 'image/jpeg',
     'X-Content-Type-Options': 'nosniff',
@@ -359,21 +385,12 @@ async function media(req, env, id, ext) {
     // Short, so a clip that's taken down stops playing soon after.
     'Cache-Control': open ? 'private, max-age=300' : 'private, no-store',
   };
-  // Safari won't play video without byte ranges.
-  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get('Range') || '');
-  let start = 0, end = info.size - 1, status = 200;
-  if (m && (m[1] || m[2])) {
-    if (m[1]) { start = Number(m[1]); if (m[2]) end = Math.min(end, Number(m[2])); }
-    else start = Math.max(0, info.size - Number(m[2]));
-    if (start > end) return new Response(null, { status: 416, headers: { ...headers, 'Content-Range': `bytes */${info.size}` } });
-    status = 206;
-    headers['Content-Range'] = `bytes ${start}-${end}/${info.size}`;
-  }
-  headers['Content-Length'] = String(end - start + 1);
-  if (req.method === 'HEAD') return new Response(null, { status, headers });
-  const obj = await env.CLIPS.get(key, { range: { offset: start, length: end - start + 1 } });
-  if (!obj) throw bad('Not found', 404);
-  return new Response(obj.body, { status, headers });
+  const size = obj.size;
+  if (!range || req.method === 'HEAD') return new Response(obj.body ?? null, { headers: { ...headers, 'Content-Length': String(size) } });
+  const start = range.suffix ? Math.max(0, size - range.suffix) : range.offset;
+  if (start >= size) { await obj.body.cancel(); return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } }); }
+  const end = range.length ? Math.min(size, start + range.length) - 1 : size - 1;
+  return new Response(obj.body, { status: 206, headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1) } });
 }
 
 // ---------- daily cleanup ----------
@@ -383,7 +400,7 @@ async function cleanup(env, today = new Date()) {
   // Weeks that ended more than DELETE_AFTER_DAYS ago keep only their top ten.
   const cutoff = addDays(weekOf(today), -DELETE_AFTER_DAYS - 7);
   const { results } = await env.DB.prepare(`SELECT id FROM (SELECT c.id, ROW_NUMBER() OVER (PARTITION BY c.week
-        ORDER BY (SELECT COUNT(*) FROM votes v WHERE v.clip_id = c.id) DESC, c.approved_at, c.id) AS place
+        ORDER BY c.votes DESC, c.approved_at, c.id) AS place
       FROM clips c WHERE c.status = 'approved' AND c.week < ?1) WHERE place > ?2
     UNION SELECT id FROM clips WHERE (status = 'uploading' AND created_at < ?3) OR status = 'deleting' LIMIT 100`)
     .bind(cutoff, TOP, t - DAY).all();
