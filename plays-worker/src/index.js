@@ -14,6 +14,9 @@ const VOTES_PER_NETWORK = 10; // per clip; leaves room for a family or a locker 
 const TOP = 10;
 const DELETE_AFTER_DAYS = 30;
 const CODE_TRIES = 5;
+// Site-wide limits that keep costs inside what Cloudflare includes: 3,000 emails a month (codes,
+// with room left for moderator notices) and 10 GB of clips (800 at the 12 MB maximum).
+const CODES_PER_DAY = 80, MAX_CLIPS = 800;
 
 const now = () => Math.floor(Date.now() / 1000);
 const bad = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -129,6 +132,8 @@ async function authStart(req, env) {
   const ip = await saltedIp(req, env);
   const n = await env.DB.prepare('SELECT SUM(email = ?1) AS e, SUM(ip = ?2) AS i FROM codes WHERE created_at > ?3').bind(email, ip, now() - 3600).first();
   if (n.e >= 5 || n.i >= 10) throw bad('Too many codes asked for. Try again in an hour.', 429);
+  const all = await env.DB.prepare('SELECT COUNT(*) AS n FROM codes WHERE created_at > ?').bind(now() - DAY).first();
+  if (all.n >= CODES_PER_DAY) throw bad('Sign-in is full for today. Try again tomorrow.', 429);
   const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
   await env.DB.prepare('INSERT INTO codes (email, hash, ip, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
     .bind(email, await sha(`${env.IP_SALT}:${email}:${code}`), ip, now() + 900, now()).run();
@@ -244,6 +249,8 @@ async function createClip(req, env) {
   if (title.length < 3) throw bad('Give the play a title');
   if (!state) throw bad('Pick a state or province');
   if (b.consent !== true) throw bad('Please confirm you have permission to share the clip');
+  const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM clips').first();
+  if (total.n >= MAX_CLIPS) throw bad('Uploads are full right now. Try again later.', 503);
   const id = random(12);
   // Counted in the same statement as the insert, so parallel requests can't slip past the limit.
   const r = await env.DB.prepare(`INSERT INTO clips (id, user_id, title, credit, state, rink_id, consent_at, created_at)
