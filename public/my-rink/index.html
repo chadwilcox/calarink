@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Rink · Calarink</title>
+  <meta name="description" content="Follow your home rink's ice times. Work at a rink? Post its schedule.">
+  <link rel="icon" href="../logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171d25" media="(prefers-color-scheme: dark)">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="my-rink.css">
+  <script data-goatcounter="https://calarink.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</head>
+<body class="rink-page">
+  <header class="top">
+    <div class="wrap top-inner">
+      <div class="brand">
+        <a href="../" class="brand-mark" aria-label="Calarink home"><img src="../logo.svg" alt="" width="42" height="42"></a>
+        <div class="wordmark">Cala<span>rink</span></div>
+      </div>
+      <div class="top-actions"><a class="btn-outline plain" href="../">Ice times</a></div>
+    </div>
+  </header>
+
+  <main class="wrap rink-main">
+    <section id="review" class="panel review" hidden></section>
+
+    <section id="home">
+      <h1>My Rink</h1>
+      <div class="pickers">
+        <label class="field">State or province <select id="state"></select></label>
+        <label class="field">Rink <select id="rink"></select></label>
+      </div>
+      <div id="rinkInfo"></div>
+      <div id="agenda" aria-live="polite"></div>
+    </section>
+
+    <section class="panel staff" id="staff">
+      <h2>Work at this rink?</h2>
+      <p class="muted">Post public skates, stick &amp; puck and other ice times, and cancel them when plans change. Free, and no website needed.</p>
+      <button type="button" class="btn" id="manageOpen">Manage this rink's schedule</button>
+      <button type="button" class="linkbtn big" id="newRinkOpen">My rink isn't listed</button>
+    </section>
+
+    <section class="panel" id="manage" hidden></section>
+  </main>
+
+  <footer class="wrap foot muted"><strong>Calarink</strong> · Schedules can change. Confirm with the rink before you drive. <span id="signedIn"></span></footer>
+
+  <dialog id="signDialog" class="modal" aria-labelledby="signTitle">
+    <div class="pad">
+      <button type="button" class="event-close btn-ghost" aria-label="Close" data-close>✕</button>
+      <h2 id="signTitle">Sign in</h2>
+      <form id="emailStep">
+        <p class="muted">Use your work email if you have one. It's the quickest way for us to confirm you're with the rink. We'll send a code, and your email is never shown.</p>
+        <label class="field">Email <input type="email" name="email" autocomplete="email" required></label>
+        <div class="modal-actions"><button class="btn">Email me a code</button></div>
+      </form>
+      <form id="codeStep" hidden>
+        <p class="muted">Enter the 6-digit code sent to <strong id="codeEmail"></strong>.</p>
+        <label class="field">Code <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" required></label>
+        <div class="modal-actions"><button type="button" class="btn-ghost" id="codeBack">Different email</button><button class="btn">Continue</button></div>
+      </form>
+      <form id="claimStep" hidden>
+        <p class="muted">Tell us who you are. We'll check with the rink before you can post. Only Calarink sees this.</p>
+        <label class="field" id="newRinkField">Rink name, town and website <input name="newRink" maxlength="200"></label>
+        <label class="field">Your name <input name="name" maxlength="80" autocomplete="name" required></label>
+        <label class="field">Your job at the rink <input name="role" maxlength="80" required></label>
+        <label class="field">Work phone <input name="phone" type="tel" maxlength="40" required></label>
+        <div class="modal-actions"><button class="btn">Send request</button></div>
+      </form>
+      <div id="sentStep" hidden>
+        <p>Thanks! We'll check with the rink, then email you when you can start posting.</p>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Done</button></div>
+      </div>
+      <p class="form-error" role="alert" hidden></p>
+    </div>
+  </dialog>
+
+  <dialog id="entryDialog" class="modal" aria-labelledby="entryTitle">
+    <form id="entryForm" class="pad">
+      <h2 id="entryTitle">Add times</h2>
+      <label class="field">What kind? <select name="kind">
+        <option value="weekly">Every week</option>
+        <option value="once">One time</option>
+        <option value="closed">Closed (no ice)</option>
+      </select></label>
+      <div data-for="weekly once">
+        <label class="field">Session <select name="type">
+          <option>Public Skate</option><option>Stick &amp; Puck</option><option>Pickup Hockey</option><option>Freestyle</option>
+          <option>Learn to Skate</option><option>Private Rental</option><option>Team Practice</option><option>Game</option>
+        </select></label>
+        <label class="field">Details <span class="muted">(optional, such as "adults" or "$6". No renters' or children's names.)</span> <input name="detail" maxlength="55"></label>
+      </div>
+      <label class="field" data-for="weekly">Day <select name="dow"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label>
+      <label class="field"><span id="dateLabel">Date</span> <input type="date" name="date" required></label>
+      <label class="field" data-for="weekly closed"><span id="untilLabel">Last date</span> <input type="date" name="until"></label>
+      <div class="two" data-for="weekly once">
+        <label class="field">Starts <input type="time" name="start"></label>
+        <label class="field">Ends <input type="time" name="end"></label>
+      </div>
+      <p class="form-error" role="alert" hidden></p>
+      <div class="modal-actions"><button type="button" class="btn-ghost" data-close>Cancel</button><button class="btn">Add</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="reportDialog" class="modal" aria-labelledby="reportTitle">
+    <form id="reportForm" class="pad">
+      <h2 id="reportTitle">Report a wrong time</h2>
+      <label class="field">What looks wrong? <textarea name="reason" rows="3" maxlength="300" required></textarea></label>
+      <p class="form-error" role="alert" hidden></p>
+      <div class="modal-actions"><button type="button" class="btn-ghost" data-close>Cancel</button><button class="btn">Send</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script src="my-rink.js" type="module"></script>
+</body>
+</html>

@@ -1,22 +1,20 @@
 // node --test plays-worker/test/units.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { weekOf, contestWeek } from '../src/weeks.js';
+import { monthOf, contestMonth } from '../src/dates.js';
 import { checkMp4 } from '../src/mp4.js';
 
-test('weeks start Monday, Eastern', () => {
-  assert.equal(weekOf(new Date('2026-11-25T12:00Z')), '2026-11-23');
-  assert.equal(weekOf(new Date('2026-11-30T04:59Z')), '2026-11-23'); // Sunday 11:59 PM EST
-  assert.equal(weekOf(new Date('2026-11-30T05:00Z')), '2026-11-30');
-  assert.equal(weekOf(new Date('2026-07-06T04:00Z')), '2026-07-06'); // daylight time
-  assert.equal(weekOf(new Date('2027-01-01T12:00Z')), '2026-12-28');
+test('months, Eastern', () => {
+  assert.equal(monthOf(new Date('2026-12-01T04:59Z')), '2026-11');
+  assert.equal(monthOf(new Date('2026-12-01T05:00Z')), '2026-12');
 });
-test('weekend approvals wait for Monday', () => {
-  assert.equal(contestWeek(new Date('2026-11-28T04:59Z')), '2026-11-23'); // Friday night
-  assert.equal(contestWeek(new Date('2026-11-28T05:00Z')), '2026-11-30'); // Saturday
-  assert.equal(contestWeek(new Date('2026-11-29T20:00Z')), '2026-11-30');
+test('the last three days wait for next month', () => {
+  assert.equal(contestMonth(new Date('2026-11-27T12:00Z')), '2026-11');
+  assert.equal(contestMonth(new Date('2026-11-28T12:00Z')), '2026-12');
+  assert.equal(contestMonth(new Date('2026-12-31T12:00Z')), '2027-01');
+  assert.equal(contestMonth(new Date('2027-02-25T12:00Z')), '2027-02');
+  assert.equal(contestMonth(new Date('2027-02-26T12:00Z')), '2027-03');
 });
-
 // A minimal MP4, to bend one thing at a time.
 const u32 = n => [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
 const str = s => [...s].map(c => c.charCodeAt(0));

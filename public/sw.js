@@ -41,7 +41,7 @@ self.addEventListener('fetch', event => {
   const req = event.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin || !req.url.startsWith(ROOT)) return;
-  if (url.pathname.startsWith('/plays-api/')) return; // Top Plays: always live, and clips are too big to keep
+  if (url.pathname.startsWith('/plays-api/')) return; // Top Plays and My Rink: always live, and clips are too big to keep
   if (url.searchParams.has('refresh')) return; // the local server's Refresh button: always live
   if (req.mode === 'navigate') return event.respondWith(page(req));
   if (url.searchParams.has('v') && !url.pathname.startsWith(new URL('sessions/', ROOT).pathname)) return event.respondWith(stamped(req));
@@ -92,7 +92,7 @@ async function page(req) {
   } catch (err) {
     const hit = await caches.match(req.url, { ignoreSearch: true });
     if (hit) return hit;
-    if (new URL(req.url).pathname.startsWith(new URL('plays/', ROOT).pathname)) throw err; // not a state page
+    if (['plays/', 'my-rink/'].some(p => new URL(req.url).pathname.startsWith(new URL(p, ROOT).pathname))) throw err; // not a state page
     const main = await caches.match(ROOT);
     if (!main) throw err;
     const html = (await main.text()).replace(/<base [^>]*>\s*/, '').replace('<head>', `<head>\n  <base href="${ROOT}">`);

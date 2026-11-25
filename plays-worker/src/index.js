@@ -4,9 +4,11 @@
 // - Voting needs no sign-in: one vote per device per clip, and a cap per network.
 // - Clips live in R2, everything else in D1. Network addresses are kept only as salted hashes.
 import { checkMp4 } from './mp4.js';
-import { addDays, contestWeek, weekOf } from './weeks.js';
+import { DAY, now, bad, json, random, sha, clean, cookie, setCookie, network, saltedIp, normEmail, isAdmin, currentUser, needUser, needAdmin, body, readLimited, sendMail, tellAdmin } from './lib.js';
+import { rinkRoute, rinkDaily } from './rinks.js';
+import { contestMonth, monthOf } from './dates.js';
+import { LEVELS } from './levels.js';
 
-const DAY = 86400;
 const SESSION_DAYS = 90;
 const MAX_VIDEO = 12 * 1024 * 1024, MAX_POSTER = 400 * 1024;
 const UPLOADS_PER_DAY = 5;
@@ -16,15 +18,7 @@ const DELETE_AFTER_DAYS = 30;
 const CODE_TRIES = 5;
 // Site-wide limits that keep costs inside what Cloudflare includes: 3,000 emails a month (codes,
 // with room left for moderator notices) and 10 GB of clips (800 at the 12 MB maximum).
-const CODES_PER_DAY = 80, MAX_CLIPS = 800;
-
-const now = () => Math.floor(Date.now() / 1000);
-const bad = (message, status = 400) => Object.assign(new Error(message), { status });
-const json = (data, status = 200, headers = {}) => Response.json(data, { status, headers: { 'Cache-Control': 'no-store', ...headers } });
-const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
-const random = n => hex(crypto.getRandomValues(new Uint8Array(n)));
-const sha = async s => hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))));
-const clean = (s, max) => String(s ?? '').replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+const CODES_PER_DAY = 80, CODES_FOR_RINKS = 20,  MAX_CLIPS = 800;
 
 export default {
   async fetch(req, env, ctx) {
@@ -41,11 +35,12 @@ export default {
       return json({ error: err.status ? err.message : 'Something went wrong. Try again.' }, err.status || 500);
     }
   },
-  async scheduled(_event, env) { await cleanup(env); },
+  async scheduled(_event, env) { await cleanup(env); await rinkDaily(env); },
 };
 
 async function route(req, env, ctx, url) {
   const p = url.pathname.replace(/^\/plays-api/, '');
+  if (p.startsWith('/rinks/')) return rinkRoute(req, env, ctx, url, p.slice(6));
   let m;
   if (req.method === 'GET' || req.method === 'HEAD') {
     if (p === '/plays') return listPlays(req, env, url);
@@ -67,68 +62,6 @@ async function route(req, env, ctx, url) {
   throw bad('Not found', 404);
 }
 
-// ---------- who's asking ----------
-
-const cookie = (req, name) => new RegExp(`(?:^|;\\s*)${name}=([0-9a-f]{64})(?:;|$)`).exec(req.headers.get('Cookie') || '')?.[1];
-const setCookie = (name, value, days) => `${name}=${value}; Path=/plays-api; Max-Age=${days * DAY}; HttpOnly; Secure; SameSite=Lax`;
-
-function network(req) {
-  let ip = req.headers.get('CF-Connecting-IP') || 'unknown';
-  // One home or phone holds a whole IPv6 /64, so the address is cut to that.
-  if (ip.includes(':')) {
-    const [head, tail] = ip.split('::').map(s => (s ? s.split(':') : []));
-    const full = tail ? [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill('0'), ...tail] : head;
-    ip = full.slice(0, 4).map(x => x.replace(/^0+(?=.)/, '')).join(':');
-  }
-  return ip;
-}
-function saltedIp(req, env) {
-  if (!env.IP_SALT) throw new Error('IP_SALT secret missing');
-  return sha(`${env.IP_SALT}:${network(req)}`);
-}
-const normEmail = s => {
-  const e = String(s || '').trim().toLowerCase();
-  return e.length <= 200 && /^[^\s@<>"',;]+@[^\s@<>"',;]+\.[^\s@<>"',;]+$/.test(e) ? e : null;
-};
-const isAdmin = (env, user) => !!user && !!env.ADMIN_EMAIL && user.email === normEmail(env.ADMIN_EMAIL);
-
-async function currentUser(req, env) {
-  const t = cookie(req, 'cp_s');
-  if (!t) return null;
-  return env.DB.prepare('SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.hash = ? AND s.expires_at > ? AND u.blocked = 0')
-    .bind(await sha(t), now()).first();
-}
-async function needUser(req, env) {
-  const u = await currentUser(req, env);
-  if (!u) throw bad('Sign in first', 401);
-  return u;
-}
-async function needAdmin(req, env) {
-  const u = await currentUser(req, env);
-  if (!isAdmin(env, u)) throw bad('Not found', 404);
-  return u;
-}
-async function body(req) {
-  const text = new TextDecoder().decode(await readLimited(req, 8000));
-  try { const b = JSON.parse(text); if (b && typeof b === 'object') return b; } catch { /* below */ }
-  throw bad('Bad request');
-}
-async function readLimited(req, max) {
-  const tooBig = () => bad('That file is too big', 413);
-  if (Number(req.headers.get('Content-Length') || 0) > max) throw tooBig();
-  const chunks = [];
-  let size = 0;
-  for await (const c of req.body || []) {
-    size += c.byteLength;
-    if (size > max) throw tooBig();
-    chunks.push(c);
-  }
-  const out = new Uint8Array(size);
-  let at = 0;
-  for (const c of chunks) { out.set(c, at); at += c.byteLength; }
-  return out.buffer;
-}
-
 // ---------- sign-in ----------
 
 async function authStart(req, env) {
@@ -138,7 +71,9 @@ async function authStart(req, env) {
   const n = await env.DB.prepare('SELECT SUM(email = ?1) AS e, SUM(ip = ?2) AS i FROM codes WHERE created_at > ?3').bind(email, ip, now() - 3600).first();
   if (n.e >= 5 || n.i >= 10) throw bad('Too many codes asked for. Try again in an hour.', 429);
   const all = await env.DB.prepare('SELECT COUNT(*) AS n FROM codes WHERE created_at > ?').bind(now() - DAY).first();
-  if (all.n >= CODES_PER_DAY) throw bad('Sign-in is full for today. Try again tomorrow.', 429);
+  // The last of the day's codes are kept for rink staff, who may need to post a cancellation.
+  const staff = all.n >= CODES_PER_DAY - CODES_FOR_RINKS && await env.DB.prepare("SELECT 1 FROM rink_managers m JOIN users u ON u.id = m.user_id WHERE u.email = ? AND m.status = 'approved'").bind(email).first();
+  if (all.n >= CODES_PER_DAY - (staff ? 0 : CODES_FOR_RINKS)) throw bad('Sign-in is full for today. Try again tomorrow.', 429);
   const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
   await env.DB.prepare('INSERT INTO codes (email, hash, ip, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
     .bind(email, await sha(`${env.IP_SALT}:${email}:${code}`), ip, now() + 900, now()).run();
@@ -176,47 +111,35 @@ async function signOut(req, env) {
 async function me(req, env) {
   const u = await currentUser(req, env);
   if (!u) return json({ user: null, clips: [] });
-  const { results } = await env.DB.prepare("SELECT id, title, status, week FROM clips WHERE user_id = ? AND status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 50").bind(u.id).all();
+  const { results } = await env.DB.prepare("SELECT id, title, status, month FROM clips WHERE user_id = ? AND status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 50").bind(u.id).all();
   return json({ user: { email: u.email, admin: isAdmin(env, u) }, clips: results });
 }
 
-async function sendMail(env, to, subject, text) {
-  if (env.DEV === '1') { console.log(`[dev mail] to ${to}: ${subject}`); return; }
-  try {
-    await env.EMAIL.send({ to, from: { email: env.MAIL_FROM, name: 'Calarink' }, subject, text });
-  } catch (err) {
-    console.error('mail failed', err.code, err.message);
-    throw bad("Couldn't send the email. Try again later.", 502);
-  }
-}
-// Notes to the moderator never hold up or fail the visitor's request.
-const tellAdmin = (env, ctx, subject, text) => env.ADMIN_EMAIL && ctx.waitUntil(sendMail(env, env.ADMIN_EMAIL, subject, text).catch(e => console.error(e)));
-
 // ---------- the contest ----------
 
-let weeksCache = { at: 0, current: '', weeks: [] }; // past weeks rarely change, so each server copy looks once a minute
-async function pastWeeks(env, current) {
-  if (now() - weeksCache.at > 60 || weeksCache.current !== current) {
-    const { results } = await env.DB.prepare("SELECT DISTINCT week FROM clips WHERE status = 'approved' AND week <= ? ORDER BY week DESC LIMIT 60").bind(current).all();
-    weeksCache = { at: now(), current, weeks: results.map(w => w.week) };
+let monthsCache = { at: 0, current: '', months: [] }; // past months rarely change, so each server copy looks once a minute
+async function pastMonths(env, current) {
+  if (now() - monthsCache.at > 60 || monthsCache.current !== current) {
+    const { results } = await env.DB.prepare("SELECT DISTINCT month FROM clips WHERE status = 'approved' AND month <= ? ORDER BY month DESC LIMIT 60").bind(current).all();
+    monthsCache = { at: now(), current, months: results.map(m => m.month) };
   }
-  return weeksCache.weeks;
+  return monthsCache.months;
 }
 async function listPlays(req, env, url) {
-  const current = weekOf();
-  const week = url.searchParams.get('week') || current;
-  if (!/^\d{4}-\d\d-\d\d$/.test(week) || week > current) throw bad('No such week', 404);
+  const current = monthOf();
+  const month = url.searchParams.get('month') || current;
+  if (!/^\d{4}-\d\d$/.test(month) || month > current) throw bad('No such month', 404);
   const device = cookie(req, 'cp_d');
-  const { results } = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.rink_id AS rink, c.votes,
+  const { results } = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.level, c.rink_id AS rink, c.votes,
       EXISTS (SELECT 1 FROM votes v WHERE v.clip_id = c.id AND v.device = ?2) AS voted
-    FROM clips c WHERE c.status = 'approved' AND c.week = ?1
+    FROM clips c WHERE c.status = 'approved' AND c.month = ?1
     ORDER BY c.votes DESC, c.approved_at, c.id LIMIT ?3`)
-    .bind(week, device ? await sha(device) : '', week === current ? 200 : TOP).all();
-  return json({ week, current, weeks: [...new Set([current, ...await pastWeeks(env, current)])], plays: results.map(r => ({ ...r, voted: !!r.voted })) });
+    .bind(month, device ? await sha(device) : '', month === current ? 200 : TOP).all();
+  return json({ month, current, months: [...new Set([current, ...await pastMonths(env, current)])], plays: results.map(r => ({ ...r, voted: !!r.voted })) });
 }
 
 async function publicClip(env, id) {
-  const c = await env.DB.prepare("SELECT * FROM clips WHERE id = ? AND status = 'approved' AND week <= ?").bind(id, weekOf()).first();
+  const c = await env.DB.prepare("SELECT * FROM clips WHERE id = ? AND status = 'approved' AND month <= ?").bind(id, monthOf()).first();
   if (!c) throw bad('That clip is no longer here', 404);
   return c;
 }
@@ -224,7 +147,7 @@ async function publicClip(env, id) {
 async function vote(req, env, id) {
   const { on } = await body(req);
   const clip = await publicClip(env, id);
-  if (clip.week !== weekOf()) throw bad('Voting for that week is over');
+  if (clip.month !== monthOf()) throw bad('Voting for that month is over');
   const token = cookie(req, 'cp_d') || random(32);
   const device = await sha(token), ip = await saltedIp(req, env);
   const retotal = env.DB.prepare('UPDATE clips SET votes = (SELECT COUNT(*) FROM votes WHERE clip_id = ?1) WHERE id = ?1').bind(id);
@@ -260,14 +183,15 @@ async function createClip(req, env) {
   const rink = /^[a-z0-9-]{1,60}$/.test(b.rink || '') ? b.rink : '';
   if (title.length < 3) throw bad('Give the play a title');
   if (!state) throw bad('Pick a state or province');
+  if (!LEVELS.has(b.level)) throw bad('Pick the level of play');
   if (b.consent !== true) throw bad('Please confirm you have permission to share the clip');
   const total = await env.DB.prepare('SELECT COUNT(*) AS n FROM clips').first();
   if (total.n >= MAX_CLIPS) throw bad('Uploads are full right now. Try again later.', 503);
   const id = random(12);
   // Counted in the same statement as the insert, so parallel requests can't slip past the limit.
-  const r = await env.DB.prepare(`INSERT INTO clips (id, user_id, title, credit, state, rink_id, consent_at, created_at)
-    SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7 WHERE (SELECT COUNT(*) FROM clips WHERE user_id = ?2 AND created_at > ?7 - ${DAY}) < ?8`)
-    .bind(id, u.id, title, credit, state, rink, now(), UPLOADS_PER_DAY).run();
+  const r = await env.DB.prepare(`INSERT INTO clips (id, user_id, title, credit, state, rink_id, consent_at, created_at, level)
+    SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?9 WHERE (SELECT COUNT(*) FROM clips WHERE user_id = ?2 AND created_at > ?7 - ${DAY}) < ?8`)
+    .bind(id, u.id, title, credit, state, rink, now(), UPLOADS_PER_DAY, b.level).run();
   if (!r.meta.changes) throw bad(`You can upload ${UPLOADS_PER_DAY} clips a day. Try again tomorrow.`, 429);
   return json({ id });
 }
@@ -321,17 +245,17 @@ async function deleteClip(req, env, id) { // the uploader, or the moderator (rej
 
 async function queue(req, env) {
   await needAdmin(req, env);
-  const pending = await env.DB.prepare("SELECT c.id, c.title, c.credit, c.state, c.rink_id AS rink, u.email FROM clips c JOIN users u ON u.id = c.user_id WHERE c.status = 'pending' ORDER BY c.created_at").all();
-  const reported = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.rink_id AS rink, u.email, COUNT(*) AS reports, GROUP_CONCAT(r.reason, ' | ') AS reasons
+  const pending = await env.DB.prepare("SELECT c.id, c.title, c.credit, c.state, c.level, c.rink_id AS rink, u.email FROM clips c JOIN users u ON u.id = c.user_id WHERE c.status = 'pending' ORDER BY c.created_at").all();
+  const reported = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.level, c.rink_id AS rink, u.email, COUNT(*) AS reports, GROUP_CONCAT(r.reason, ' | ') AS reasons
     FROM reports r JOIN clips c ON c.id = r.clip_id JOIN users u ON u.id = c.user_id WHERE c.status = 'approved' GROUP BY c.id ORDER BY reports DESC`).all();
-  return json({ pending: pending.results, reported: reported.results, week: contestWeek(), current: weekOf() });
+  return json({ pending: pending.results, reported: reported.results, month: contestMonth(), current: monthOf() });
 }
 async function approve(req, env, id) {
   await needAdmin(req, env);
-  const week = contestWeek();
-  const r = await env.DB.prepare("UPDATE clips SET status = 'approved', week = ?, approved_at = ? WHERE id = ? AND status = 'pending'").bind(week, now(), id).run();
+  const month = contestMonth();
+  const r = await env.DB.prepare("UPDATE clips SET status = 'approved', month = ?, approved_at = ? WHERE id = ? AND status = 'pending'").bind(month, now(), id).run();
   if (!r.meta.changes) throw bad('That clip is no longer waiting', 404);
-  return json({ ok: true, week });
+  return json({ ok: true, month });
 }
 async function clearReports(req, env, id) {
   await needAdmin(req, env);
@@ -355,8 +279,8 @@ async function block(req, env, id) { // the uploader is blocked and everything o
 // ---------- files ----------
 
 async function media(req, env, id, ext) {
-  const c = await env.DB.prepare('SELECT user_id, status, week FROM clips WHERE id = ?').bind(id).first();
-  const open = c?.status === 'approved' && c.week <= weekOf();
+  const c = await env.DB.prepare('SELECT user_id, status, month FROM clips WHERE id = ?').bind(id).first();
+  const open = c?.status === 'approved' && c.month <= monthOf();
   if (!open) {
     const u = c && c.status !== 'deleting' && await currentUser(req, env);
     if (!u || (u.id !== c.user_id && !isAdmin(env, u))) throw bad('Not found', 404);
@@ -397,11 +321,11 @@ async function media(req, env, id, ext) {
 
 async function cleanup(env, today = new Date()) {
   const t = Math.floor(today.getTime() / 1000);
-  // Weeks that ended more than DELETE_AFTER_DAYS ago keep only their top ten.
-  const cutoff = addDays(weekOf(today), -DELETE_AFTER_DAYS - 7);
-  const { results } = await env.DB.prepare(`SELECT id FROM (SELECT c.id, ROW_NUMBER() OVER (PARTITION BY c.week
+  // Months that ended more than DELETE_AFTER_DAYS ago keep only their top ten.
+  const cutoff = monthOf(new Date((t - DELETE_AFTER_DAYS * DAY) * 1000));
+  const { results } = await env.DB.prepare(`SELECT id FROM (SELECT c.id, ROW_NUMBER() OVER (PARTITION BY c.month
         ORDER BY c.votes DESC, c.approved_at, c.id) AS place
-      FROM clips c WHERE c.status = 'approved' AND c.week < ?1) WHERE place > ?2
+      FROM clips c WHERE c.status = 'approved' AND c.month < ?1) WHERE place > ?2
     UNION SELECT id FROM clips WHERE (status = 'uploading' AND created_at < ?3) OR status = 'deleting' LIMIT 100`)
     .bind(cutoff, TOP, t - DAY).all();
   await remove(env, results.map(r => r.id));

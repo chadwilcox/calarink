@@ -1,0 +1,35 @@
+/* My Rink (calarink.com/my-rink/). Colors, buttons, dialogs and sessions come from styles.css. */
+[hidden] { display: none !important; }
+.rink-page { padding-bottom: 0; }
+.rink-main { padding-top: 20px; padding-bottom: 20px; max-width: 820px; }
+.rink-main h1 { font-size: 24px; }
+.plain { text-decoration: none; }
+.pickers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+@media (max-width: 520px) { .pickers { grid-template-columns: 1fr; gap: 0; } }
+.field { display: block; font-size: 14px; font-weight: 600; margin-top: 12px; }
+.field .muted { font-weight: 400; }
+.field input, .field select, .field textarea { display: block; width: 100%; margin-top: 4px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; font-weight: 400; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.pad { position: relative; padding: 20px !important; }
+.pad form { padding: 0; }
+.pad h2 { padding-right: 32px; }
+.pad p { font-size: 14px; }
+.form-error { color: var(--danger); font-weight: 600; margin: 12px 0 0; }
+.danger { color: var(--danger) !important; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-top: 22px; }
+.panel h2 { font-size: 17px; margin: 0 0 4px; }
+.panel h3 { font-size: 14px; margin: 18px 0 6px; }
+.panel p { margin: 0 0 12px; font-size: 14px; }
+.review { margin: 0 0 20px; border-color: color-mix(in srgb, var(--warn) 45%, var(--border)); }
+.linkbtn.big { font-size: 14px; padding: 10px 8px; }
+#rinkInfo { font-size: 14px; }
+#rinkInfo .links { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 14px; }
+#agenda .session { grid-template-columns: 150px minmax(0, 1fr); grid-template-areas: "time title" "time meta"; }
+@media (max-width: 560px) { #agenda .session { grid-template-columns: 1fr; grid-template-areas: "time" "title" "meta"; } }
+.rows > div { display: flex; gap: 10px; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); padding: 8px 0; font-size: 14px; }
+.rows > div > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.rows .linkbtn { font-size: 13px; padding: 6px; white-space: nowrap; }
+.rows .draft { background: color-mix(in srgb, var(--now) 10%, transparent); }
+.rows .gone { text-decoration: line-through; opacity: .6; }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.publish { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; margin: 16px -16px -16px; padding: 12px 16px; border-top: 1px solid var(--border); background: var(--surface-2); border-radius: 0 0 var(--radius) var(--radius); font-size: 14px; }

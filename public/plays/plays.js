@@ -10,7 +10,7 @@ const params = new URLSearchParams(location.search);
 const linkedClip = params.get('clip');
 
 let places = { states: [], rinks: [] };
-let board = null;    // the week on screen
+let board = null;    // the month on screen
 let me = { user: null, clips: [] };
 let playSelection = false;
 
@@ -42,46 +42,46 @@ function count(path, title) {
 const stateName = code => places.states.find(s => s.code === code)?.name || code;
 const rinkName = id => places.rinks.find(r => r.id === id)?.name || '';
 const whereOf = p => [rinkName(p.rink), stateName(p.state)].filter(Boolean).join(', ');
-function weekLabel(week) {
-  const f = n => {
-    const d = new Date(`${week}T12:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + n);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-  };
-  return `${f(0)} – ${f(6)}`;
-}
+const monthLabel = m => new Date(`${m}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+// Same list as plays-worker/src/levels.js. Canada names its age groups differently.
+const LEVELS_US = ['6U', '8U', '10U', '12U', '14U', '16U', '18U'], LEVELS_CA = ['U7', 'U9', 'U11', 'U13', 'U15', 'U18'];
+const LEVELS_BOTH = ['High School', 'Junior', 'College', 'Adult', 'Other'];
+const LEVELS = [...LEVELS_US, ...LEVELS_CA, ...LEVELS_BOTH];
 const votesText = n => `${n} vote${n === 1 ? '' : 's'}`;
 
 // ---------- the list ----------
-async function loadBoard(week = '') {
+async function loadBoard(month = '') {
   try {
-    board = await api(`/plays${week ? `?week=${encodeURIComponent(week)}` : ''}`);
+    board = await api(`/plays${month ? `?month=${encodeURIComponent(month)}` : ''}`);
   } catch (err) {
     $('#list').innerHTML = `<div class="empty"><strong>Couldn't load the plays.</strong>${esc(err.message)}</div>`;
     return;
   }
-  $('#week').innerHTML = board.weeks.map(w => `<option value="${esc(w)}"${w === board.week ? ' selected' : ''}>${w === board.current ? 'This week' : weekLabel(w)}</option>`).join('');
+  $('#month').innerHTML = board.months.map(w => `<option value="${esc(w)}"${w === board.month ? ' selected' : ''}>${w === board.current ? 'This month' : monthLabel(w)}</option>`).join('');
   renderBoard();
 }
 
 function renderBoard() {
-  const live = board.week === board.current;
-  $('#weekNote').textContent = live
-    ? `${weekLabel(board.week)}. Vote for as many as you like. Voting ends Sunday night (Eastern).`
-    : `${weekLabel(board.week)}. Final results.`;
+  const live = board.month === board.current;
+  $('#monthNote').textContent = live
+    ? `${monthLabel(board.month)}. Vote for as many as you like. Voting ends when the month does (Eastern).`
+    : `${monthLabel(board.month)}. Final results.`;
   const filter = $('#stateFilter'), chosen = filter.value;
   const codes = [...new Set(board.plays.map(p => p.state))].sort((a, b) => stateName(a).localeCompare(stateName(b)));
   if (chosen && !codes.includes(chosen)) codes.push(chosen);
   filter.innerHTML = '<option value="">Everywhere</option>' + codes.map(c => `<option value="${esc(c)}"${c === chosen ? ' selected' : ''}>${esc(stateName(c))}</option>`).join('');
 
-  // Places are for the whole contest, so a state's list can start at #3.
-  const shown = board.plays.map((p, i) => ({ ...p, place: i + 1 })).filter(p => !chosen || p.state === chosen);
+  const levels = LEVELS.filter(l => board.plays.some(p => p.level === l) || l === $('#levelFilter').value), level = $('#levelFilter').value;
+  $('#levelFilter').innerHTML = '<option value="">All levels</option>' + levels.map(l => `<option${l === level ? ' selected' : ''}>${esc(l)}</option>`).join('');
+
+  // Places are for the whole contest, so a state's or level's list can start at #3.
+  const shown = board.plays.map((p, i) => ({ ...p, place: i + 1 })).filter(p => !chosen || p.state === chosen).filter(p => !level || p.level === level);
   $('#list').innerHTML = shown.map(p => `
     <article class="play" data-id="${p.id}">
       <video src="${API}/media/${p.id}.mp4" poster="${API}/media/${p.id}.jpg" controls loop playsinline preload="none" aria-label="${esc(p.title)}"></video>
       <div class="play-body">
         <h3><span class="place">#${p.place}</span>${esc(p.title)}</h3>
-        <p class="muted">${[p.credit, whereOf(p)].filter(Boolean).map(esc).join(' · ')}</p>
+        <p class="muted">${[p.level, p.credit, whereOf(p)].filter(Boolean).map(esc).join(' · ')}</p>
         <div class="play-actions">
           ${live ? `<button type="button" class="btn-outline vote" data-act="vote" aria-pressed="${p.voted}">${p.voted ? 'Voted' : 'Vote'} · ${p.votes}</button>` : `<strong>${votesText(p.votes)}</strong>`}
           <span class="spacer"></span>
@@ -89,7 +89,7 @@ function renderBoard() {
           <button type="button" class="linkbtn" data-act="report">Report</button>
         </div>
       </div>
-    </article>`).join('') || `<div class="empty"><strong>No plays ${live ? 'yet this week' : 'here'}.</strong>${live ? 'Got a good one? Upload it and be first.' : ''}</div>`;
+    </article>`).join('') || `<div class="empty"><strong>No plays ${live ? 'yet this month' : 'here'}.</strong>${live ? 'Got a good one? Upload it and be first.' : ''}</div>`;
 }
 
 async function toggleVote(id, button) {
@@ -107,7 +107,7 @@ async function toggleVote(id, button) {
 
 async function share(id) {
   const p = board.plays.find(x => x.id === id);
-  const url = `${location.origin}${location.pathname}?week=${board.week}&clip=${id}`;
+  const url = `${location.origin}${location.pathname}?month=${board.month}&clip=${id}`;
   try {
     if (navigator.share && matchMedia('(pointer: coarse)').matches) await navigator.share({ title: p.title, text: `${p.title} · Calarink Top Plays`, url });
     else { await navigator.clipboard.writeText(url); toast('Link copied'); }
@@ -127,8 +127,9 @@ $('#list').addEventListener('click', e => {
 $('#list').addEventListener('play', e => {
   for (const v of document.querySelectorAll('#list video')) if (v !== e.target) v.pause();
 }, true);
-$('#week').addEventListener('change', e => loadBoard(e.target.value));
+$('#month').addEventListener('change', e => loadBoard(e.target.value));
 $('#stateFilter').addEventListener('change', renderBoard);
+$('#levelFilter').addEventListener('change', renderBoard);
 $('#reportForm').addEventListener('submit', async e => {
   e.preventDefault();
   try {
@@ -147,7 +148,7 @@ async function loadMe() {
   mine.hidden = !me.user;
   if (!me.user) { $('#review').hidden = true; return; }
   mine.innerHTML = `<h2>Your clips</h2>${me.clips.map(c => `
-    <div class="mine-row" data-id="${c.id}"><span><strong>${esc(c.title)}</strong> <span class="muted">${c.status === 'pending' ? 'Waiting for approval' : `Week of ${weekLabel(c.week)}`}</span></span>
+    <div class="mine-row" data-id="${c.id}"><span><strong>${esc(c.title)}</strong> <span class="muted">${c.status === 'pending' ? 'Waiting for approval' : monthLabel(c.month)}</span></span>
     <button type="button" class="linkbtn danger" data-delete>Delete</button></div>`).join('') || '<p class="muted">None yet.</p>'}
     <p class="mine-foot muted">Signed in as ${esc(me.user.email)}. <button type="button" class="linkbtn" data-signout>Sign out</button></p>`;
   if (me.user.admin) loadReview();
@@ -157,7 +158,7 @@ $('#mine').addEventListener('click', async e => {
     if (e.target.closest('[data-delete]')) {
       if (!confirm('Delete this clip? This removes it for good.')) return;
       await api(`/clips/${e.target.closest('.mine-row').dataset.id}`, { method: 'DELETE' });
-      await Promise.all([loadMe(), loadBoard(board?.week)]);
+      await Promise.all([loadMe(), loadBoard(board?.month)]);
     }
     if (e.target.closest('[data-signout]')) { await api('/auth/signout', { method: 'POST' }); await loadMe(); }
   } catch (err) { toast(err.message); }
@@ -170,11 +171,11 @@ async function loadReview() {
   const card = (p, buttons) => `
     <article class="play" data-id="${p.id}">
       <video src="${API}/media/${p.id}.mp4" poster="${API}/media/${p.id}.jpg" controls loop playsinline preload="none"></video>
-      <div class="play-body"><h3>${esc(p.title)}</h3><p class="muted">${[p.credit, whereOf(p), p.email].filter(Boolean).map(esc).join(' · ')}</p>
+      <div class="play-body"><h3>${esc(p.title)}</h3><p class="muted">${[p.level, p.credit, whereOf(p), p.email].filter(Boolean).map(esc).join(' · ')}</p>
       ${p.reports ? `<p class="danger">${p.reports} report${p.reports === 1 ? '' : 's'}: ${esc(p.reasons)}</p>` : ''}
       <div class="play-actions">${buttons}<span class="spacer"></span><button type="button" class="linkbtn danger" data-act="block">Block uploader</button></div></div>
     </article>`;
-  const when = q.week === q.current ? 'this week' : `the week of ${weekLabel(q.week)}`;
+  const when = q.month === q.current ? 'this month' : monthLabel(q.month);
   $('#review').innerHTML = `<h2>Waiting for review (${q.pending.length})</h2>
     ${q.pending.length ? `<p class="muted small">Approved clips join ${when}.</p><div class="plays-grid">${q.pending.map(p => card(p, '<button type="button" class="btn" data-act="approve">Approve</button><button type="button" class="btn-outline danger" data-act="reject">Reject</button>')).join('')}</div>` : '<p class="muted small">Nothing waiting.</p>'}
     ${q.reported.length ? `<h2>Reported (${q.reported.length})</h2><div class="plays-grid">${q.reported.map(p => card(p, '<button type="button" class="btn-outline" data-act="clear">Keep it</button><button type="button" class="btn-outline danger" data-act="reject">Take down</button>')).join('')}</div>` : ''}`;
@@ -191,7 +192,7 @@ $('#review').addEventListener('click', async e => {
     if (act === 'reject') await api(`/clips/${id}`, { method: 'DELETE' });
     else await api(`/clips/${id}/${act}`, { method: 'POST' });
   } catch (err) { toast(err.message); }
-  await Promise.all([loadMe(), loadBoard(board?.week)]);
+  await Promise.all([loadMe(), loadBoard(board?.month)]);
 });
 
 // ---------- uploading: steps ----------
@@ -255,6 +256,8 @@ function fillPlaces() {
 }
 function fillRinks() {
   const f = $('#clipStep');
+  const ca = places.states.find(x => x.code === f.state.value)?.country === 'CA', keep = f.level.value;
+  f.level.innerHTML = '<option value="">Choose…</option>' + [...(ca ? LEVELS_CA : LEVELS_US), ...LEVELS_BOTH].map(l => `<option${l === keep ? ' selected' : ''}>${l}</option>`).join('');
   const rinks = places.rinks.filter(r => r.state === f.state.value).sort((a, b) => a.name.localeCompare(b.name));
   f.rink.innerHTML = '<option value="">Not listed / skip</option>' + rinks.map(r => `<option value="${esc(r.id)}">${esc(r.name)}${r.town ? ` (${esc(r.town)})` : ''}</option>`).join('');
 }
@@ -392,7 +395,7 @@ $('#clipStep').addEventListener('submit', async e => {
   bar.hidden = false; bar.value = 0;
   for (const b of document.querySelectorAll('#uploadDialog [data-close]')) b.disabled = true;
   try {
-    const details = { title: f.title.value, credit: f.credit.value, state: f.state.value, rink: f.rink.value, consent: f.consent.checked };
+    const details = { title: f.title.value, credit: f.credit.value, state: f.state.value, level: f.level.value, rink: f.rink.value, consent: f.consent.checked };
     send.textContent = 'Preparing…';
     let video;
     try { video = await convert(file, selection(), f.sound.checked, p => { bar.value = p * 0.7; }); }
@@ -426,8 +429,8 @@ fetch('../schedule.json').then(r => r.json()).then(d => {
 }).catch(() => { /* names fall back to codes */ });
 
 (async () => {
-  await loadBoard(params.get('week') || '');
-  if (!board) await loadBoard(); // a link to a week that isn't there
+  await loadBoard(params.get('month') || '');
+  if (!board) await loadBoard(); // a link to a month that isn't there
   await loadMe();
   if (linkedClip) {
     const el = document.querySelector(`#list .play[data-id="${CSS.escape(linkedClip)}"]`);

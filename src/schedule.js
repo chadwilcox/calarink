@@ -15,6 +15,7 @@ import { fetchMontrealArena } from './sources/montrealArena.js';
 import { fetchActiveNet } from './sources/activenet.js';
 import { fetchMyRec, fetchMyRecProgram } from './sources/myrec.js';
 import { readManual } from './manual.js';
+import { expandPosted, fetchPosted, isOff } from './posted.js';
 
 const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart, courtreserve: fetchCourtReserve,
   torontoDropIn: fetchTorontoDropIn, classList: fetchClassList, montrealArena: fetchMontrealArena, activenet: fetchActiveNet,
@@ -103,6 +104,19 @@ function mergeManual(rink, pulled, manual) {
   return [...kept, ...added].sort((a, b) => a.start.localeCompare(b.start));
 }
 
+// Times the rink's staff post on My Rink. Cancellations and closures mark whatever is there
+// cancelled; a posted time the rink's own calendar has too gives way to the calendar's.
+function mergePosted(rink, sessions, posted) {
+  if (!posted) return sessions;
+  const tz = rinkTz(rink);
+  const { sessions: extra, off } = expandPosted(posted, tz, windowRange(tz));
+  const mark = s => (isOff(Date.parse(s.start), s.postedAt, off) ? { ...s, cancelled: true } : s);
+  const base = sessions.map(mark);
+  const added = extra.map(s => mark({ ...toSession(rink, s), posted: true, ...(s.postedAt && { postedAt: s.postedAt }) }))
+    .filter(m => !base.some(p => !p.cancelled && p.category === m.category && Math.abs(Date.parse(p.start) - Date.parse(m.start)) <= 15 * 60 * 1000));
+  return [...base, ...added].sort((a, b) => a.start.localeCompare(b.start));
+}
+
 async function pullSource(rink, source, index, force) {
   const key = `${rink.id}#${index}`;
   const hit = cache.get(key);
@@ -131,6 +145,7 @@ async function pullSource(rink, source, index, force) {
 
 export async function getSchedule({ force = false } = {}) {
   const now = Date.now();
+  const postedAll = await fetchPosted();
   const rinkResults = await Promise.all(RINKS.map(async rink => {
     const sources = rink.sources || [];
     const [entries, manual] = await Promise.all([
@@ -139,13 +154,15 @@ export async function getSchedule({ force = false } = {}) {
     ]);
     const errors = entries.filter(e => e.error).map(e => e.error);
     const seen = new Map(); // the same title at the same time twice (two sheets): number the repeats
-    const sessions = mergeManual(rink, entries.flatMap(e => e.sessions || []), manual).filter(s => Date.parse(s.end) >= now - 6 * 60 * 60 * 1000)
+    const posted = postedAll[rink.id];
+    const sessions = mergePosted(rink, mergeManual(rink, entries.flatMap(e => e.sessions || []), manual), posted).filter(s => Date.parse(s.end) >= now - 6 * 60 * 60 * 1000)
       .map(s => { const n = (seen.get(s.id) || 0) + 1; seen.set(s.id, n); return n > 1 ? { ...s, id: `${s.id}-${n}` } : s; });
     const { sources: _omit, ...meta } = rink;
     return {
       rink: {
         ...meta,
-        live: sources.length > 0 || manual.add.length > 0,
+        live: sources.length > 0 || manual.add.length > 0 || sessions.some(s => s.posted),
+        ...(posted && { posted: { updated: posted.updated, stale: posted.stale } }),
         sourceTypes: [...new Set(sources.map(s => s.type))],
         status: sources.length ? {
           ok: errors.length === 0,

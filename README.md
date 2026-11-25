@@ -50,10 +50,10 @@ People upload hockey clips of up to 15 seconds, the moderator approves them, and
 
 - **Page:** [public/plays/](public/plays/), published with the site. The uploader's browser trims the video and converts it to a 720p H.264 MP4 (about 8 MB at most), with AAC sound unless the uploader turns it off, using [Mediabunny](https://mediabunny.dev) (MPL-2.0, kept in `public/vendor/`), which also drops location data.
 - **API:** the Worker in [plays-worker/](plays-worker/) at `calarink.com/plays-api/*`, with details in a D1 database and clips in an R2 bucket. It checks every file itself. The location Worker in `worker/` is separate.
-- **Weeks** run Monday to Sunday, Eastern. A clip joins the week it's approved in; clips approved on Saturday or Sunday join the next week and stay hidden until Monday.
+- **Months:** one contest per calendar month, Eastern. A clip joins the month it's approved in; in a month's last three days it waits for the next one and stays hidden until the 1st. Each clip is tagged with a level (8U, U11, Adult, …).
 - **Uploading** needs an email confirmed with a code; 5 clips a day each. **Voting** needs no sign-in: one vote per device per clip, at most 10 per clip from one network.
 - **Moderating:** sign in on the page with the `ADMIN_EMAIL` address (Upload a clip, then the code). Clips to review and reported clips show at the top; new ones are emailed.
-- **Keeping clips:** each week's top 10 stay. The rest are deleted 30 days after their week ends, by a daily job.
+- **Keeping clips:** each month's top 10 stay. The rest are deleted 30 days after their month ends, by a daily job.
 
 **Try it locally:** put `DEV="1"`, `DEV_ORIGIN="http://localhost:5178"`, `ADMIN_EMAIL="you@example.com"` and `IP_SALT="anything"` in `plays-worker/.dev.vars`. In `plays-worker/` run `npx wrangler d1 migrations apply calarink-plays --local`, then `npx wrangler dev`, and start the site as usual. Sign-in codes print in the wrangler window. Never set `DEV` on the live Worker. Tests: `node --test plays-worker/test/units.test.js`.
 
@@ -63,6 +63,16 @@ People upload hockey clips of up to 15 seconds, the moderator approves them, and
 2. `npx wrangler d1 create calarink-plays`; put the id it prints in `wrangler.toml`; `npx wrangler d1 migrations apply calarink-plays --remote`.
 3. `npx wrangler email sending enable calarink.com` (Cloudflare Email Sending; adds the DNS records).
 4. `npx wrangler deploy`, then `npx wrangler secret put` for `ADMIN_EMAIL` and `IP_SALT` (a long random string; don't change it later).
+
+## My Rink (calarink.com/my-rink/)
+
+Skaters choose a home rink (kept on their device, no sign-in). Rink staff claim their rink and post its times.
+
+- **Claims:** staff sign in with an emailed code and ask; the moderator (`ADMIN_EMAIL`) checks with the rink using the phone number on its own website, then approves at the top of the page. A rink Calarink doesn't list has to be added to [src/rinks.js](src/rinks.js) first; approving then asks for its id. Revoking a rink's last manager takes its posted times down.
+- **Posting:** weekly times (with a last date), one-time sessions, closures and cancellations, published together, with history and undo. The API is [plays-worker/src/rinks.js](plays-worker/src/rinks.js).
+- **Reaching the site:** the build reads `/plays-api/rinks/schedule` ([src/posted.js](src/posted.js); the last copy is kept in `data/` if that fails). Pages also read `/plays-api/rinks/live`, so cancellations and closures show within a minute or two. Where a rink's own calendar has the same kind of ice within 15 minutes, the calendar's copy shows.
+- **Keeping it current:** managers are emailed after 14 days without confirming, and skaters see a warning; weekly times are left out after 30.
+- **Locally:** start the site with `POSTED_URL=http://127.0.0.1:8787/plays-api/rinks/schedule`.
 
 ## How it gets the data
 

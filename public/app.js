@@ -96,8 +96,10 @@ async function load(refresh = false) {
         unsavedState = currentState().name; data.sessions = []; // opened offline on a state never saved here
       }
     }
+    applyOff();
     buildStaticControls();
     render();
+    loadOff();
     // A shared session link (calarink.com/maine/?event=<id>) opens that session, once.
     if (!linkOpened) {
       linkOpened = true;
@@ -122,6 +124,33 @@ async function loadStateSessions() {
   if (!res.ok) throw new Error(`Server returned ${res.status}`);
   const sessions = await res.json();
   if (currentState().slug === slug) data.sessions = sessions; // ignore a reply for a state the visitor already left
+}
+
+// Cancellations rink staff just posted (My Rink), ahead of the next scheduled build.
+let offTimes = {};
+const offFmts = new Map();
+function localStamp(iso, tz) { // "2026-11-25T18:00" on the rink's clock
+  if (!offFmts.has(tz)) offFmts.set(tz, new Intl.DateTimeFormat('en-CA', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }));
+  const p = Object.fromEntries(offFmts.get(tz).formatToParts(new Date(iso)).map(x => [x.type, x.value]));
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+function applyOff() {
+  if (!data?.sessions) return;
+  for (const s of data.sessions) {
+    const off = offTimes[s.rinkId];
+    if (!off || s.cancelled) continue;
+    const rink = rinkById(s.rinkId);
+    const [date, time] = localStamp(s.start, rink.tz || stateOfRink(rink).tz || DEFAULT_TZ).split('T');
+    if (off.some(o => (o.start ? o.date === date && o.start === time : date >= o.date && date <= o.until) && !(s.postedAt && s.postedAt >= o.at))) s.cancelled = true;
+  }
+}
+async function loadOff() {
+  try {
+    const res = await fetch('/plays-api/rinks/live');
+    if (!res.ok) return;
+    offTimes = (await res.json()).rinks || {};
+  } catch { return; } // offline: the schedules still show
+  if (Object.keys(offTimes).length) { applyOff(); render(); }
 }
 
 // ---------- US state ----------
@@ -309,7 +338,7 @@ function wireControls() {
         unsavedState = currentState().name; data.sessions = []; // offline, and this state was never saved here
       }
     }
-    buildStaticControls(); render();
+    applyOff(); buildStaticControls(); render();
   });
   $('#rinkList').addEventListener('change', e => {
     const id = e.target.dataset.rink; if (!id) return;
@@ -329,7 +358,6 @@ function wireControls() {
   });
   $('#refresh').addEventListener('click', () => load(true));
   $('#summary').addEventListener('click', e => { if (e.target.closest('[data-share-list]')) shareList(); });
-  $('#navShare').addEventListener('click', shareList);
   $('#navFilter').addEventListener('click', () => showFilterSheet(!document.body.classList.contains('filters-open')));
   $('#filtersDone').addEventListener('click', () => showFilterSheet(false));
   $('#sheetBackdrop').addEventListener('click', () => showFilterSheet(false));
@@ -484,7 +512,8 @@ function renderAgenda(visible, now) {
       const flags = [
         isNow && '<span class="flag now">On now</span>',
         s.cancelled && '<span class="flag bad">Cancelled</span>',
-        s.recurring && '<span class="flag" title="Projected from a weekly schedule posted on the rink\'s site">Weekly (posted)</span>',
+        s.posted && `<span class="flag" title="Posted on Calarink by the rink">${rink.posted?.stale ? 'Not confirmed lately' : 'From the rink'}</span>`,
+        s.recurring && !s.posted && '<span class="flag" title="Projected from a weekly schedule posted on the rink\'s site">Weekly (posted)</span>',
         s.fromText && !s.recurring && '<span class="flag" title="Read from text on the rink\'s web page">From rink page</span>',
       ].filter(Boolean).join('');
       // Title and rink are separate grid cells so phones can show the rink right under the time.
@@ -511,6 +540,7 @@ function renderDirect() {
     <div class="links">
       <a href="${esc(r.scheduleUrl || r.website)}" target="_blank" rel="noopener">Schedule / website ↗</a>
       ${r.phone ? `<a href="tel:${esc(r.phone.replace(/\D/g, ''))}">${esc(r.phone)}</a>` : ''}
+      <a href="/my-rink/?rink=${esc(r.id)}&manage=1">Work here? Post your schedule</a>
     </div></div>`).join('');
 }
 
@@ -561,7 +591,8 @@ function openSession(id, { fromLink = false } = {}) {
       <a class="btn-outline" href="${esc(rink.scheduleUrl || rink.website)}" target="_blank" rel="noopener">${icon('open')}<span>Rink's schedule</span></a>
       <a class="btn-outline" href="${esc(directionsUrl(rink))}" target="_blank" rel="noopener">${icon('map')}<span>Directions</span></a>
     </div>
-    <p class="muted event-note">Times come from the rink's own calendar and can change. Confirm with the rink before you go.</p>`;
+    ${s.posted && rink.posted ? `<p class="muted event-note">Posted by the rink, updated ${esc(new Date(rink.posted.updated * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}.${rink.posted.stale ? ' <strong>The rink has not confirmed it lately, so call first.</strong>' : ''} <a href="/my-rink/?rink=${esc(rink.id)}&report=1">Report a wrong time</a></p>` : ''}
+    <p class="muted event-note">Times come from the rink${s.posted ? '' : "'s own calendar"} and can change. Confirm with the rink before you go.</p>`;
   if (fromLink) count('event-link-opened', 'Opened a shared session link');
   dialog.showModal();
 }
