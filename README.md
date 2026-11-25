@@ -44,6 +44,26 @@ A floating **Free Mobile App** button shows on phones and tablets that don't hav
 
 **Counts:** [calarink.goatcounter.com](https://calarink.goatcounter.com) (free, no cookies). Page views are counted per state page (`/maine/`); picking a state counts as a view of that state's page. Events: `app-opened` (launched from a home screen), `app-installed` (the first launch on a device; the installed app keeps its own storage, so this works on iPhones too), and `app-button-tapped` (the Free Mobile App button), `event-shared`, `event-link-opened` (someone opened a shared session link), `added-to-calendar`, `list-shared` and `list-link-opened` (a shared filtered list). Visits from `localhost` aren't counted.
 
+## Top Plays (calarink.com/plays/)
+
+People upload hockey clips of up to 15 seconds, the moderator approves them, and anyone votes. One contest covers every state, with a state filter.
+
+- **Page:** [public/plays/](public/plays/), published with the site. The uploader's browser trims the video and converts it to a 720p H.264 MP4 (about 8 MB at most), with AAC sound unless the uploader turns it off, using [Mediabunny](https://mediabunny.dev) (MPL-2.0, kept in `public/vendor/`), which also drops location data.
+- **API:** the Worker in [plays-worker/](plays-worker/) at `calarink.com/plays-api/*`, with details in a D1 database and clips in an R2 bucket. It checks every file itself. The location Worker in `worker/` is separate.
+- **Weeks** run Monday to Sunday, Eastern. A clip joins the week it's approved in; clips approved on Saturday or Sunday join the next week and stay hidden until Monday.
+- **Uploading** needs an email confirmed with a code; 5 clips a day each. **Voting** needs no sign-in: one vote per device per clip, at most 10 per clip from one network.
+- **Moderating:** sign in on the page with the `ADMIN_EMAIL` address (Upload a clip, then the code). Clips to review and reported clips show at the top; new ones are emailed.
+- **Keeping clips:** each week's top 10 stay. The rest are deleted 30 days after their week ends, by a daily job.
+
+**Try it locally:** put `DEV="1"`, `DEV_ORIGIN="http://localhost:5178"`, `ADMIN_EMAIL="you@example.com"` and `IP_SALT="anything"` in `plays-worker/.dev.vars`. In `plays-worker/` run `npx wrangler d1 migrations apply calarink-plays --local`, then `npx wrangler dev`, and start the site as usual. Sign-in codes print in the wrangler window. Never set `DEV` on the live Worker. Tests: `node --test plays-worker/test/units.test.js`.
+
+**First-time setup**, from `plays-worker/`, before pushing the page:
+
+1. Turn on R2 in the Cloudflare dashboard, then `npx wrangler r2 bucket create calarink-clips`.
+2. `npx wrangler d1 create calarink-plays`; put the id it prints in `wrangler.toml`; `npx wrangler d1 migrations apply calarink-plays --remote`.
+3. Verify calarink.com as a sending domain in Resend (or point `MAIL_FROM` at a domain that's already verified).
+4. `npx wrangler deploy`, then `npx wrangler secret put` for `ADMIN_EMAIL`, `RESEND_API_KEY` and `IP_SALT` (a long random string; don't change it later).
+
 ## How it gets the data
 
 Each rink in [src/rinks.js](src/rinks.js) lists zero or more **sources**:

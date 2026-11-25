@@ -1,0 +1,54 @@
+/* Top Plays (calarink.com/plays/). Colors, buttons and dialogs come from styles.css. */
+[hidden] { display: none !important; }
+.plays-page { padding-bottom: 0; }
+.plays { padding-top: 20px; padding-bottom: 20px; }
+.plays-back { text-decoration: none; }
+.plays-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.plays-head h1 { font-size: 24px; }
+.plays-head p { margin: 2px 0 0; font-size: 14px; }
+.plays-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.plays-filters select { width: auto; max-width: 100%; }
+
+.plays-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(310px, 100%), 1fr)); gap: 16px; }
+.plays-grid .empty { grid-column: 1 / -1; }
+.play { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.play.linked { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.play video { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: contain; background: #000; }
+.play-body { padding: 10px 14px 12px; }
+.play-body h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.play-body h3 .place { color: var(--accent); margin-right: 4px; font-variant-numeric: tabular-nums; }
+.play-body p { margin: 2px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.play-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.play-actions .spacer { flex: 1; }
+.vote[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.play-actions .linkbtn { padding: 8px 2px; }
+.danger { color: var(--danger) !important; }
+
+.review { border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border)); border-radius: var(--radius); padding: 14px; margin-bottom: 18px; background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
+.review h2, .mine h2 { font-size: 16px; margin: 0 0 8px; }
+.review h2:not(:first-child) { margin-top: 18px; }
+.mine { margin-top: 28px; }
+.mine-row { display: flex; gap: 12px; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
+.mine-foot { font-size: 13px; }
+
+.upload-body { position: relative; padding: 20px; }
+.upload-body h2 { padding-right: 32px; }
+.modal .upload-body form { padding: 0; }
+.upload-body p { font-size: 14px; margin: 6px 0 12px; }
+.small { font-size: 13px !important; }
+.field { display: block; font-size: 14px; font-weight: 600; margin-top: 12px; }
+.field .muted { font-weight: 400; }
+.field input, .field select, .field textarea { display: block; width: 100%; margin-top: 4px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; font-size: 16px; font-weight: 400; } /* 16px: iPhones zoom in on smaller fields */
+.pick { margin-top: 8px; }
+.pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+#preview { display: block; width: 100%; max-height: 40vh; background: #000; border-radius: 8px; margin-bottom: 10px; }
+.trim-row { display: grid; grid-template-columns: 72px 1fr 52px; gap: 8px; align-items: center; font-size: 13px; }
+.trim-row input { width: 100%; accent-color: var(--accent); min-height: 32px; }
+.trim-row output { text-align: right; font-variant-numeric: tabular-nums; }
+.trim-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 14px; }
+.check { display: grid; grid-template-columns: 20px 1fr; gap: 8px; margin-top: 14px; font-size: 13px; }
+.check input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); }
+#progress { width: 100%; margin-top: 14px; accent-color: var(--accent); }
+.upload-body .upload-error { color: var(--danger); font-weight: 600; margin: 12px 0 0; }
+.rules { padding-left: 18px; font-size: 14px; margin: 8px 0 0; }
+.rules li + li { margin-top: 6px; }

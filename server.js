@@ -11,6 +11,8 @@ const PUBLIC = path.join(ROOT, 'public');
 const PORT = Number(process.env.PORT) || 5178;
 const HOST = process.env.HOST || '127.0.0.1'; // local machine only; set HOST=0.0.0.0 to share on your network
 
+const PLAYS_API = process.env.PLAYS_API || 'http://127.0.0.1:8787'; // `npx wrangler dev` in plays-worker/
+
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 
 function send(res, status, body, type = 'application/json; charset=utf-8') {
@@ -25,6 +27,13 @@ const server = http.createServer(async (req, res) => {
       const data = await getSchedule({ force: url.searchParams.get('refresh') === '1' });
       return send(res, 200, JSON.stringify(data));
     }
+    // Top Plays: passed along to its Worker running locally.
+    if (url.pathname.startsWith('/plays-api/')) {
+      return req.pipe(http.request(PLAYS_API + req.url, { method: req.method, headers: req.headers }, r => {
+        res.writeHead(r.statusCode, r.headers);
+        r.pipe(res);
+      }).on('error', () => send(res, 502, '{"error":"The Top Plays Worker is not running"}')));
+    }
     if (req.method !== 'GET') return send(res, 405, '{"error":"method not allowed"}');
 
     // State pages (/maine): the same page, with its files pointed back at the root.
@@ -34,7 +43,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, html.replace('<head>', '<head>\n  <base href="/">'), TYPES['.html']);
     }
 
-    const rel = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname).replace(/^\/+/, '');
+    const rel = decodeURIComponent(url.pathname).replace(/^[/]+/, '').replace(/(^|[/])$/, '$1index.html');
     const file = path.join(PUBLIC, rel);
     if (!file.startsWith(PUBLIC + path.sep)) return send(res, 403, 'forbidden', 'text/plain');
     const body = await fs.readFile(file).catch(() => null);

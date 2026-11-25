@@ -47,6 +47,13 @@ for (const f of ['app.js', 'styles.css', 'logo.svg']) {
 }
 await fs.writeFile(path.join(DIST, 'index.html'), html);
 
+// The Top Plays page, stamped the same way.
+let plays = await fs.readFile(path.join('public', 'plays', 'index.html'), 'utf8');
+for (const [ref, file] of [['plays.js', 'plays/plays.js'], ['plays.css', 'plays/plays.css'], ['../styles.css', 'styles.css'], ['../logo.svg', 'logo.svg']]) {
+  plays = plays.replaceAll(`"${ref}"`, `"${ref}?v=${await stamp(file)}"`);
+}
+await fs.writeFile(path.join(DIST, 'plays', 'index.html'), plays);
+
 // One page per state (calarink.com/maine/). Same page; <base> points its files back at the root,
 // and app.js reads the state from the address.
 for (const s of STATES) {

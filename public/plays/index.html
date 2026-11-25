@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Top Plays of the Week · Calarink</title>
+  <meta name="description" content="The best hockey plays of the week, picked by you. Watch, vote, and upload your own clip.">
+  <link rel="icon" href="../logo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+  <link rel="manifest" href="../manifest.webmanifest">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#171d25" media="(prefers-color-scheme: dark)">
+  <meta property="og:site_name" content="Calarink">
+  <meta property="og:title" content="Top Plays of the Week on Calarink">
+  <meta property="og:description" content="Watch this week's best hockey plays and vote for your favorites.">
+  <meta property="og:image" content="https://calarink.com/icons/maskable-512.png">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="plays.css">
+  <script data-goatcounter="https://calarink.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+</head>
+<body class="plays-page">
+  <header class="top">
+    <div class="wrap top-inner">
+      <div class="brand">
+        <a href="../" class="brand-mark" aria-label="Calarink home"><img src="../logo.svg" alt="" width="42" height="42"></a>
+        <div class="wordmark">Cala<span>rink</span></div>
+      </div>
+      <div class="top-actions"><a class="btn-outline plays-back" href="../">Ice times</a></div>
+    </div>
+  </header>
+
+  <main class="wrap plays">
+    <div class="plays-head">
+      <div>
+        <h1>Top Plays of the Week</h1>
+        <p class="muted" id="weekNote">&nbsp;</p>
+      </div>
+      <button type="button" class="btn" id="upload">Upload a clip</button>
+    </div>
+
+    <section id="review" class="review" hidden></section>
+
+    <div class="plays-filters">
+      <label><span class="visually-hidden">Week</span><select id="week"></select></label>
+      <label><span class="visually-hidden">State or province</span><select id="stateFilter"><option value="">Everywhere</option></select></label>
+    </div>
+    <div id="list" class="plays-grid" aria-live="polite"></div>
+
+    <section id="mine" class="mine" hidden></section>
+  </main>
+
+  <footer class="wrap foot muted">
+    <strong>Calarink</strong> · Clips are shared by the people who uploaded them, and checked before they appear. <button type="button" class="linkbtn" id="rulesOpen">Clip rules &amp; privacy</button>
+  </footer>
+
+  <dialog id="uploadDialog" class="modal upload-modal" aria-labelledby="uploadTitle">
+    <div class="upload-body">
+      <button type="button" class="event-close btn-ghost" aria-label="Close" data-close>✕</button>
+      <h2 id="uploadTitle">Upload a clip</h2>
+
+      <form id="emailStep" hidden>
+        <p class="muted">We'll email you a code, so we know how to reach you about your clip. Your email is never shown.</p>
+        <label class="field">Email <input type="email" name="email" autocomplete="email" required></label>
+        <div class="modal-actions"><button class="btn">Email me a code</button></div>
+      </form>
+
+      <form id="codeStep" hidden>
+        <p class="muted">Enter the 6-digit code sent to <strong id="codeEmail"></strong>.</p>
+        <label class="field">Code <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" required></label>
+        <div class="modal-actions"><button type="button" class="btn-ghost" id="codeBack">Different email</button><button class="btn">Continue</button></div>
+      </form>
+
+      <form id="clipStep" hidden>
+        <label class="btn-outline pick">Choose a video<input type="file" id="file" accept="video/*" class="visually-hidden"></label>
+        <p class="muted small">Any length. You'll pick the best 15 seconds next.</p>
+        <div id="trim" hidden>
+          <video id="preview" playsinline></video>
+          <div class="trim-row"><label for="start">Starts at</label><input type="range" id="start" min="0" step="0.1"><output id="startOut"></output></div>
+          <div class="trim-row"><label for="end">Ends at</label><input type="range" id="end" min="0" step="0.1"><output id="endOut"></output></div>
+          <div class="trim-foot"><button type="button" class="btn-outline" id="playTrim">Play selection</button><strong id="trimLength"></strong></div>
+          <label class="check"><input type="checkbox" name="sound" checked> <span>Include sound. Turn this off if you can hear recorded music or private conversations.</span></label>
+          <label class="field">Title <input name="title" maxlength="80" minlength="3" required placeholder="Glove save in overtime"></label>
+          <label class="field">Player or team <span class="muted">(optional, shown publicly)</span> <input name="credit" maxlength="60"></label>
+          <label class="field">State or province <select name="state" required></select></label>
+          <label class="field">Rink <span class="muted">(optional)</span> <select name="rink"></select></label>
+          <label class="check"><input type="checkbox" name="consent" required> <span>I'm 18 or older. I have the right to share this clip, and permission from the people featured in it (a parent or guardian for anyone under 18).</span></label>
+        </div>
+        <progress id="progress" max="1" value="0" hidden></progress>
+        <div class="modal-actions"><button class="btn" id="send" disabled>Upload</button></div>
+      </form>
+
+      <div id="doneStep" hidden>
+        <p>Thanks! We look at every clip before it appears. Once it's approved, people can vote on it through Sunday night. Clips approved on a weekend start on Monday.</p>
+        <div class="modal-actions"><button type="button" class="btn" data-close>Done</button></div>
+      </div>
+      <p id="uploadError" class="upload-error" role="alert" hidden></p>
+    </div>
+  </dialog>
+
+  <dialog id="reportDialog" class="modal" aria-labelledby="reportTitle">
+    <form id="reportForm">
+      <h2 id="reportTitle">Report this clip</h2>
+      <p class="muted">Tell us what's wrong. If you or your child is in it and you want it taken down, just say so.</p>
+      <label class="field"><span class="visually-hidden">What's wrong</span><textarea name="reason" maxlength="300" rows="3" required></textarea></label>
+      <div class="modal-actions"><button type="button" class="btn-ghost" data-close>Cancel</button><button class="btn">Send report</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="rulesDialog" class="modal" aria-labelledby="rulesTitle">
+    <form method="dialog">
+      <h2 id="rulesTitle">Clip rules &amp; privacy</h2>
+      <ul class="rules">
+        <li>Upload only clips you have the right to share. No TV or streaming broadcasts.</li>
+        <li>Get permission from the people featured, and from a parent or guardian for anyone under 18. Leave out full names of kids.</li>
+        <li>Hockey plays only: no fights, injuries, or anything meant to embarrass someone.</li>
+        <li>Want a clip removed? Use Report on the clip. You can delete your own clips on this page any time.</li>
+        <li>You keep ownership of your clip. Uploading lets Calarink show it here.</li>
+        <li>We keep uploaders' emails, and a scrambled form of voters' and reporters' network addresses to keep voting fair. A cookie remembers your votes. None of it is shown or sold.</li>
+        <li>Clips can include sound from the rink. Leave it out if it has recorded music or private conversations.</li>
+        <li>Location information is removed from clips before upload. Each week's top 10 stay; other clips are deleted about 30 days after their week ends.</li>
+      </ul>
+      <div class="modal-actions"><button class="btn">OK</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="plays.js" type="module"></script>
+</body>
+</html>
