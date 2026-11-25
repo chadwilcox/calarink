@@ -61,8 +61,8 @@ People upload hockey clips of up to 15 seconds, the moderator approves them, and
 
 1. Turn on R2 in the Cloudflare dashboard, then `npx wrangler r2 bucket create calarink-clips`.
 2. `npx wrangler d1 create calarink-plays`; put the id it prints in `wrangler.toml`; `npx wrangler d1 migrations apply calarink-plays --remote`.
-3. Verify calarink.com as a sending domain in Resend (or point `MAIL_FROM` at a domain that's already verified).
-4. `npx wrangler deploy`, then `npx wrangler secret put` for `ADMIN_EMAIL`, `RESEND_API_KEY` and `IP_SALT` (a long random string; don't change it later).
+3. `npx wrangler email sending enable calarink.com` (Cloudflare Email Sending; adds the DNS records).
+4. `npx wrangler deploy`, then `npx wrangler secret put` for `ADMIN_EMAIL` and `IP_SALT` (a long random string; don't change it later).
 
 ## How it gets the data
 

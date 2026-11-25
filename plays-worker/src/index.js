@@ -171,16 +171,13 @@ async function me(req, env) {
 }
 
 async function sendMail(env, to, subject, text) {
-  if (!env.RESEND_API_KEY) {
-    if (env.DEV === '1') { console.log(`[dev mail] to ${to}: ${subject}`); return; }
-    throw bad('Email is not set up yet', 503);
+  if (env.DEV === '1') { console.log(`[dev mail] to ${to}: ${subject}`); return; }
+  try {
+    await env.EMAIL.send({ to, from: { email: env.MAIL_FROM, name: 'Calarink' }, subject, text });
+  } catch (err) {
+    console.error('mail failed', err.code, err.message);
+    throw bad("Couldn't send the email. Try again later.", 502);
   }
-  const r = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: env.MAIL_FROM, to: [to], subject, text }),
-  });
-  if (!r.ok) { console.error('mail failed', r.status, await r.text()); throw bad("Couldn't send the email. Try again later.", 502); }
 }
 // Notes to the moderator never hold up or fail the visitor's request.
 const tellAdmin = (env, ctx, subject, text) => env.ADMIN_EMAIL && ctx.waitUntil(sendMail(env, env.ADMIN_EMAIL, subject, text).catch(e => console.error(e)));

@@ -10,8 +10,12 @@ routes = [
 ]
 
 [vars]
-MAIL_FROM = "Calarink <noreply@calarink.com>"
-# Secrets (npx wrangler secret put ...): ADMIN_EMAIL, RESEND_API_KEY, IP_SALT
+MAIL_FROM = "noreply@calarink.com"
+# Secrets (npx wrangler secret put ...): ADMIN_EMAIL, IP_SALT
+
+# Cloudflare Email Sending, enabled for calarink.com
+[[send_email]]
+name = "EMAIL"
 
 [triggers]
 crons = ["20 9 * * *"] # daily cleanup, early morning Eastern
