@@ -3,7 +3,8 @@
 // - Nothing is public until the moderator approves it.
 // - Voting needs no sign-in: one vote per device per clip, and a cap per network.
 // - Clips live in R2, everything else in D1. Network addresses are kept only as salted hashes.
-import { checkMp4 } from './mp4.js';
+import { checkMp4, mp4Seconds } from './mp4.js';
+import { allow, screenWaiting } from './screen.js';
 import { DAY, now, bad, json, random, sha, clean, cookie, setCookie, network, saltedIp, normEmail, isAdmin, currentUser, needUser, needAdmin, body, readLimited, sendMail, tellAdmin } from './lib.js';
 import { rinkRoute, rinkDaily } from './rinks.js';
 import { contestMonth, monthOf } from './dates.js';
@@ -35,8 +36,36 @@ export default {
       return json({ error: err.status ? err.message : 'Something went wrong. Try again.' }, err.status || 500);
     }
   },
-  async scheduled(_event, env) { await cleanup(env); await rinkDaily(env); },
+  async scheduled(event, env) {
+    if (event.cron === UPDATE_CRON) {
+      await updateSite(env).catch(err => console.error(err));
+      return screenWaiting(env);
+    }
+    await cleanup(env);
+    await rinkDaily(env);
+    await digest(env);
+  },
 };
+
+// GitHub runs its own timers hours late, so this starts the site's build (the Publish workflow).
+const UPDATE_CRON = '7,37 * * * *'; // as in wrangler.toml
+async function updateSite(env) {
+  if (!env.GITHUB_TOKEN) return;
+  const r = await fetch('https://api.github.com/repos/chadwilcox/calarink/actions/workflows/publish.yml/dispatches', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.GITHUB_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': 'site-updates', 'X-GitHub-Api-Version': '2022-11-28' },
+    body: '{"ref":"main"}',
+  });
+  if (!r.ok) console.error('could not start the build', r.status);
+}
+
+// One email a day about what's waiting, instead of one per clip.
+async function digest(env) {
+  if (!env.ADMIN_EMAIL) return;
+  const n = await env.DB.prepare("SELECT (SELECT COUNT(*) FROM clips WHERE status = 'pending') AS clips, (SELECT COUNT(DISTINCT clip_id) FROM reports) AS reports").first();
+  if (!n.clips && !n.reports) return;
+  await sendMail(env, env.ADMIN_EMAIL, `Calarink: ${n.clips} clip${n.clips === 1 ? '' : 's'} to review${n.reports ? `, ${n.reports} reported` : ''}`, 'Review them: https://calarink.com/plays/?review=1\n').catch(err => console.error(err));
+}
 
 async function route(req, env, ctx, url) {
   const p = url.pathname.replace(/^\/plays-api/, '');
@@ -132,14 +161,14 @@ async function listPlays(req, env, url) {
   const device = cookie(req, 'cp_d');
   const { results } = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.level, c.rink_id AS rink, c.votes,
       EXISTS (SELECT 1 FROM votes v WHERE v.clip_id = c.id AND v.device = ?2) AS voted
-    FROM clips c WHERE c.status = 'approved' AND c.month = ?1
+    FROM clips c WHERE c.status = 'approved' AND c.hidden = 0 AND c.month = ?1
     ORDER BY c.votes DESC, c.approved_at, c.id LIMIT ?3`)
     .bind(month, device ? await sha(device) : '', month === current ? 200 : TOP).all();
   return json({ month, current, months: [...new Set([current, ...await pastMonths(env, current)])], plays: results.map(r => ({ ...r, voted: !!r.voted })) });
 }
 
 async function publicClip(env, id) {
-  const c = await env.DB.prepare("SELECT * FROM clips WHERE id = ? AND status = 'approved' AND month <= ?").bind(id, monthOf()).first();
+  const c = await env.DB.prepare("SELECT * FROM clips WHERE id = ? AND status = 'approved' AND hidden = 0 AND month <= ?").bind(id, monthOf()).first();
   if (!c) throw bad('That clip is no longer here', 404);
   return c;
 }
@@ -170,7 +199,9 @@ async function report(req, env, id, ctx, url) {
   const n = await env.DB.prepare('SELECT COUNT(*) AS n FROM reports WHERE ip = ? AND created_at > ?').bind(ip, now() - DAY).first();
   if (n.n >= 10) throw bad('Too many reports today', 429);
   const r = await env.DB.prepare('INSERT OR IGNORE INTO reports (clip_id, ip, reason, created_at) VALUES (?, ?, ?, ?)').bind(id, ip, reason, now()).run();
-  if (r.meta.changes) tellAdmin(env, ctx, 'Calarink: a clip was reported', `"${clip.title}" was reported: ${reason}\n\nReview it: ${url.origin}/plays/?review=1\n`);
+  // Two reports from different networks hide it until the moderator looks.
+  if (r.meta.changes) await env.DB.prepare('UPDATE clips SET hidden = 1 WHERE id = ?1 AND kept = 0 AND (SELECT COUNT(*) FROM reports WHERE clip_id = ?1) >= 2').bind(id).run();
+  if (r.meta.changes && await allow(env, 'report-mail', 20)) tellAdmin(env, ctx, 'Calarink: a clip was reported', `"${clip.title}" was reported: ${reason}\n\nReview it: ${url.origin}/plays/?review=1\n`);
   return json({ ok: true });
 }
 
@@ -208,7 +239,7 @@ async function putFile(req, env, ctx, url, id, kind) {
   if (problem) throw bad(problem);
   // Each file is written once, so nothing can be swapped in behind an approved clip.
   const col = video ? 'has_video' : 'has_poster';
-  const claim = await env.DB.prepare(`UPDATE clips SET ${col} = 1 WHERE id = ? AND status = 'uploading' AND ${col} = 0`).bind(id).run();
+  const claim = await env.DB.prepare(`UPDATE clips SET ${col} = 1, seconds = CASE WHEN ?2 > 0 THEN ?2 ELSE seconds END WHERE id = ?1 AND status = 'uploading' AND ${col} = 0`).bind(id, video ? mp4Seconds(data) : 0).run();
   if (!claim.meta.changes) throw bad('Already uploaded', 409);
   try {
     await env.CLIPS.put(`${id}.${video ? 'mp4' : 'jpg'}`, data, { httpMetadata: { contentType: video ? 'video/mp4' : 'image/jpeg' } });
@@ -218,7 +249,6 @@ async function putFile(req, env, ctx, url, id, kind) {
   }
   if (!video) { // sent last: the clip is complete and joins the review queue
     await env.DB.prepare("UPDATE clips SET status = 'pending' WHERE id = ? AND status = 'uploading'").bind(id).run();
-    tellAdmin(env, ctx, 'Calarink: a clip is waiting for review', `"${clip.title}" from ${u.email}\n\nReview it: ${url.origin}/plays/?review=1\n`);
   }
   return json({ ok: true });
 }
@@ -245,10 +275,10 @@ async function deleteClip(req, env, id) { // the uploader, or the moderator (rej
 
 async function queue(req, env) {
   await needAdmin(req, env);
-  const pending = await env.DB.prepare("SELECT c.id, c.title, c.credit, c.state, c.level, c.rink_id AS rink, u.email FROM clips c JOIN users u ON u.id = c.user_id WHERE c.status = 'pending' ORDER BY c.created_at").all();
-  const reported = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.level, c.rink_id AS rink, u.email, COUNT(*) AS reports, GROUP_CONCAT(r.reason, ' | ') AS reasons
+  const pending = await env.DB.prepare("SELECT c.id, c.title, c.credit, c.state, c.level, c.rink_id AS rink, c.screen, u.email FROM clips c JOIN users u ON u.id = c.user_id WHERE c.status = 'pending' ORDER BY c.created_at").all();
+  const reported = await env.DB.prepare(`SELECT c.id, c.title, c.credit, c.state, c.level, c.rink_id AS rink, c.hidden, u.email, COUNT(*) AS reports, GROUP_CONCAT(r.reason, ' | ') AS reasons
     FROM reports r JOIN clips c ON c.id = r.clip_id JOIN users u ON u.id = c.user_id WHERE c.status = 'approved' GROUP BY c.id ORDER BY reports DESC`).all();
-  return json({ pending: pending.results, reported: reported.results, month: contestMonth(), current: monthOf() });
+  return json({ pending: pending.results.map(p => ({ ...p, screen: p.screen && JSON.parse(p.screen) })), reported: reported.results, month: contestMonth(), current: monthOf() });
 }
 async function approve(req, env, id) {
   await needAdmin(req, env);
@@ -259,7 +289,7 @@ async function approve(req, env, id) {
 }
 async function clearReports(req, env, id) {
   await needAdmin(req, env);
-  await env.DB.prepare('DELETE FROM reports WHERE clip_id = ?').bind(id).run();
+  await env.DB.batch([env.DB.prepare('DELETE FROM reports WHERE clip_id = ?').bind(id), env.DB.prepare('UPDATE clips SET hidden = 0, kept = 1 WHERE id = ?').bind(id)]);
   return json({ ok: true });
 }
 async function block(req, env, id) { // the uploader is blocked and everything of theirs is removed
@@ -279,8 +309,8 @@ async function block(req, env, id) { // the uploader is blocked and everything o
 // ---------- files ----------
 
 async function media(req, env, id, ext) {
-  const c = await env.DB.prepare('SELECT user_id, status, month FROM clips WHERE id = ?').bind(id).first();
-  const open = c?.status === 'approved' && c.month <= monthOf();
+  const c = await env.DB.prepare('SELECT user_id, status, month, hidden FROM clips WHERE id = ?').bind(id).first();
+  const open = c?.status === 'approved' && !c.hidden && c.month <= monthOf();
   if (!open) {
     const u = c && c.status !== 'deleting' && await currentUser(req, env);
     if (!u || (u.id !== c.user_id && !isAdmin(env, u))) throw bad('Not found', 404);
@@ -331,6 +361,7 @@ async function cleanup(env, today = new Date()) {
   await remove(env, results.map(r => r.id));
   await env.DB.batch([
     env.DB.prepare('DELETE FROM codes WHERE created_at < ?').bind(t - DAY),
+    env.DB.prepare('DELETE FROM usage WHERE day < ?').bind(new Date((t - 3 * DAY) * 1000).toISOString().slice(0, 10)),
     env.DB.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(t),
   ]);
 }

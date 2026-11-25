@@ -5,8 +5,9 @@ name: Publish
 
 on:
   schedule:
-    # Every 30 minutes, off the :00/:30 marks, which GitHub delays or drops most at busy times.
-    - cron: '17,47 * * * *'
+    # A backup. calarink-plays (plays-worker/) starts this every 30 minutes; GitHub's own timer runs
+    # hours late at busy times.
+    - cron: '17 */6 * * *'
   push:
     branches: [main]
   workflow_dispatch:

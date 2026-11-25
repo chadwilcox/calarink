@@ -1,6 +1,6 @@
 // My Rink: anyone can follow a home rink; rink staff sign in to post its times.
-// The API is plays-worker/src/rinks.js. Posted times reach the schedules at the next scheduled
-// build; cancellations and closures show right away.
+// The API is plays-worker/src/rinks.js. Pages lay what's posted over the schedules right away
+// (posted-live.js); the next scheduled build includes it too.
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const API = '/plays-api';
@@ -8,7 +8,7 @@ const HOME_KEY = 'calarink:home-rink';
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const params = new URLSearchParams(location.search);
 
-let data = null, off = {}, me = { user: null, claims: [] };
+let data = null, live = null, me = { user: null, claims: [] };
 let current = null;        // the rink on screen
 let book = null;           // its entries, when managing
 let drafts = [], removing = new Set();
@@ -90,12 +90,10 @@ async function sessionsFor(state) {
   }
   return sessionsByState.get(state);
 }
-const isOff = (r, s, l) => s.cancelled || (off[r.id] || []).some(o => (o.start ? o.date === l.date && o.start === l.time : l.date >= o.date && l.date <= o.until) && !(s.postedAt && s.postedAt >= o.at));
-
 async function upcoming(r, days) {
   const now = Date.now(), tz = tzOf(r), last = plus(local(now, tz).date, days - 1);
-  return (await sessionsFor(r.state)).filter(s => s.rinkId === r.id && Date.parse(s.end) > now)
-    .map(s => { const l = local(s.start, tz); return { ...s, l, endTime: local(s.end, tz).time, off: isOff(r, s, l) }; })
+  return window.mergePostedLive(data, await sessionsFor(r.state), live).filter(s => s.rinkId === r.id && Date.parse(s.end) > now)
+    .map(s => { const l = local(s.start, tz); return { ...s, l, endTime: local(s.end, tz).time, off: s.cancelled }; })
     .filter(s => s.l.date <= last);
 }
 async function renderSessions() {
@@ -104,7 +102,9 @@ async function renderSessions() {
   try { list = await upcoming(r, 7); } catch { $('#agenda').innerHTML = '<div class="empty">Couldn\'t load the times. Try again.</div>'; return; }
   if (current !== r) return;
   const t = local(Date.now(), tzOf(r)).date;
-  const closed = (off[r.id] || []).filter(o => !o.start && o.until >= t && o.date <= plus(t, 6)).map(o => `<div class="alert">Closed ${o.until === o.date ? dayText(o.date) : `${dayText(o.date)} – ${dayText(o.until)}`}, posted by the rink.</div>`).join('');
+  const soon = Date.now() + 7 * 864e5;
+  const closed = (live?.[r.id]?.off || []).filter(o => o.to - o.from > 1 && o.to > Date.now() && o.from < soon)
+    .map(o => [local(o.from, tzOf(r)).date, local(o.to - 1, tzOf(r)).date]).map(([a, b]) => `<div class="alert">Closed ${a === b ? dayText(a) : `${dayText(a)} – ${dayText(b)}`}, posted by the rink.</div>`).join('');
   const byDay = new Map();
   for (const s of list) { if (!byDay.has(s.l.date)) byDay.set(s.l.date, []); byDay.get(s.l.date).push(s); }
   $('#agenda').innerHTML = closed + ([...byDay].map(([d, ss]) => `<section class="day"><div class="day-head"><h3>${esc(dayText(d))}</h3>${d === t ? '<span class="today-tag">Today</span>' : ''}</div><div class="sessions">${ss.map(s => `
@@ -181,7 +181,7 @@ function preview(listed) {
   const days = new Map(Array.from({ length: 14 }, (_, i) => [plus(t, i), []]));
   const offs = all.filter(e => e.kind === 'cancel' || e.kind === 'closed');
   const gone = (d, start, at) => offs.some(o => (o.kind === 'cancel' ? o.date === d && o.start === start : d >= o.date && d <= o.until) && !(at && at >= (o.at ?? Infinity)));
-  for (const s of listed) if (!s.posted && days.has(s.l.date)) days.get(s.l.date).push({ start: s.l.time, end: s.endTime, title: s.title, calendar: true, off: s.cancelled || gone(s.l.date, s.l.time) });
+  for (const s of listed) if (!s.posted && days.has(s.l.date)) days.get(s.l.date).push({ start: s.l.time, end: s.endTime, title: s.title, calendar: true, off: (s.cancelled && !s.offPosted) || gone(s.l.date, s.l.time) });
   for (const e of all) {
     if (e.kind === 'once' && days.has(e.date)) days.get(e.date).push({ ...e, off: gone(e.date, e.start, e.at ?? Infinity) });
     if (e.kind === 'weekly') for (const [d, list] of days) if (d >= e.from && d <= e.until && noon(d).getUTCDay() === e.dow) list.push({ ...e, off: gone(d, e.start) });
@@ -211,7 +211,7 @@ async function renderManage() {
     <h3>History</h3><div class="rows">${book.log.map((l, i) => `<div><span class="${l.undone ? 'gone' : ''}">${new Date(l.at * 1000).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} · ${esc(l.email)}: ${[l.change.added.length && `${l.change.added.length} added`, l.change.removed.length && `${l.change.removed.length} removed`].filter(Boolean).join(', ')}</span>${!l.undone && book.log.findIndex(x => !x.undone) === i ? '<button type="button" class="linkbtn" data-do="undo">Undo</button>' : ''}</div>`).join('') || '<p class="muted">No changes yet.</p>'}</div>
     ${n ? `<div class="publish"><span><strong>${n} change${n === 1 ? '' : 's'}</strong> not published</span><span class="tools"><button type="button" class="btn-ghost" data-do="discard">Discard</button><button type="button" class="btn" data-do="publish">Publish</button></span></div>` : ''}`;
 }
-async function reload() { book = await api(`/rinks/r/${current.id}/manage`); drafts = []; removing = new Set(); try { off = (await api('/rinks/live')).rinks; } catch { /* keep */ } await renderManage(); renderSessions(); }
+async function reload() { book = await api(`/rinks/r/${current.id}/manage`); drafts = []; removing = new Set(); try { live = (await api('/rinks/live')).rinks; } catch { /* keep */ } await renderManage(); renderSessions(); }
 $('#manage').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
   const { remove, draft, cancel, do: act } = b.dataset;
@@ -231,7 +231,7 @@ $('#manage').addEventListener('click', async e => {
     b.disabled = true;
     try {
       await api(`/rinks/r/${current.id}/${act === 'publish' ? 'changes' : act}`, act === 'publish' ? { add: drafts, remove: [...removing] } : {});
-      toast(act === 'publish' ? 'Published. New times can take several hours to appear. Cancellations show within a minute or two.' : act === 'confirm' ? 'Thanks, confirmed.' : 'Undone.');
+      toast(act === 'publish' ? 'Published. Skaters see it within a minute or two.' : act === 'confirm' ? 'Thanks, confirmed.' : 'Undone.');
       await reload();
     } catch (err) { toast(err.message); b.disabled = false; }
     return;
@@ -303,7 +303,7 @@ $('#review').addEventListener('click', async e => {
 // ---------- start ----------
 (async () => {
   try { data = await (await fetch('../schedule.json')).json(); } catch { $('#rinkInfo').innerHTML = '<div class="empty">Couldn\'t load the rinks. Try reloading.</div>'; $('#staff').hidden = true; return; }
-  try { off = (await api('/rinks/live')).rinks; } catch { /* the schedules still show */ }
+  try { live = (await api('/rinks/live')).rinks; } catch { /* the schedules still show */ }
   const wanted = rinkById(params.get('rink')) || rinkById(readHome());
   let st = wanted?.state;
   if (!st) {

@@ -172,6 +172,8 @@ async function loadReview() {
     <article class="play" data-id="${p.id}">
       <video src="${API}/media/${p.id}.mp4" poster="${API}/media/${p.id}.jpg" controls loop playsinline preload="none"></video>
       <div class="play-body"><h3>${esc(p.title)}</h3><p class="muted">${[p.level, p.credit, whereOf(p), p.email].filter(Boolean).map(esc).join(' · ')}</p>
+      ${p.screen ? `<p class="screen ${esc(p.screen.verdict)}"><strong>${{ ok: 'Looks fine', unsure: 'Look closely', bad: 'Probably not OK' }[p.screen.verdict]}</strong> (automatic check, pictures only): ${esc(p.screen.summary)}${p.screen.concerns.length ? ` Concerns: ${esc(p.screen.concerns.join('; '))}.` : ''}</p>` : p.reports ? '' : '<p class="muted">Not checked automatically yet.</p>'}
+      ${p.hidden ? '<p class="danger">Hidden until you decide.</p>' : ''}
       ${p.reports ? `<p class="danger">${p.reports} report${p.reports === 1 ? '' : 's'}: ${esc(p.reasons)}</p>` : ''}
       <div class="play-actions">${buttons}<span class="spacer"></span><button type="button" class="linkbtn danger" data-act="block">Block uploader</button></div></div>
     </article>`;
@@ -423,7 +425,7 @@ $('#clipStep').addEventListener('submit', async e => {
 // Rink and state names come with the schedules. The plays don't wait for them.
 fetch('../schedule.json').then(r => r.json()).then(d => {
   places = { states: d.states, rinks: d.rinks };
-  if (board) renderBoard();
+  if (board && ![...document.querySelectorAll('#list video')].some(v => !v.paused)) renderBoard(); // not under a clip that's playing
   if (!$('#clipStep').state.value) fillPlaces();
   if (me.user?.admin) loadReview();
 }).catch(() => { /* names fall back to codes */ });

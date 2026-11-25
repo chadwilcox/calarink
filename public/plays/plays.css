@@ -52,3 +52,7 @@
 .upload-body .upload-error { color: var(--danger); font-weight: 600; margin: 12px 0 0; }
 .rules { padding-left: 18px; font-size: 14px; margin: 8px 0 0; }
 .rules li + li { margin-top: 6px; }
+
+.play-body .screen { margin-top: 8px; padding: 8px 10px; border-radius: 8px; border-left: 4px solid var(--warn); background: var(--surface-2); }
+.play-body .screen.ok { border-color: var(--now); }
+.play-body .screen.bad { border-color: var(--danger); }

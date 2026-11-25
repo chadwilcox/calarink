@@ -11,7 +11,7 @@ routes = [
 
 [vars]
 MAIL_FROM = "noreply@calarink.com"
-# Secrets (npx wrangler secret put ...): ADMIN_EMAIL, IP_SALT
+# Secrets (npx wrangler secret put ...): ADMIN_EMAIL, IP_SALT, GITHUB_TOKEN (starts site updates)
 
 # Per network; a full page of clips and posters is well under this
 [[ratelimits]]
@@ -28,7 +28,7 @@ cpu_ms = 200
 name = "EMAIL"
 
 [triggers]
-crons = ["20 9 * * *"] # daily cleanup, early morning Eastern
+crons = ["20 12 * * *", "7,37 * * * *"] # daily cleanup and emails, morning Eastern; site updates (UPDATE_CRON)
 
 [[d1_databases]]
 binding = "DB"
@@ -39,3 +39,12 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "CLIPS"
 bucket_name = "calarink-clips"
+
+# Clip screening (src/screen.js): stills from the stored video, and a vision model
+[ai]
+binding = "AI"
+remote = true
+
+[media]
+binding = "MEDIA"
+remote = true

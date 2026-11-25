@@ -41,7 +41,7 @@ await fs.writeFile(path.join(DIST, '.nojekyll'), '');
 // or the reverse, breaks the page.
 const stamp = async f => crypto.createHash('sha256').update(await fs.readFile(path.join('public', f))).digest('hex').slice(0, 10);
 let html = await fs.readFile(path.join('public', 'index.html'), 'utf8');
-for (const f of ['app.js', 'styles.css', 'logo.svg']) {
+for (const f of ['app.js', 'posted-live.js', 'styles.css', 'logo.svg']) {
   const v = await stamp(f);
   html = html.replaceAll(`"${f}"`, `"${f}?v=${v}"`);
 }
@@ -50,7 +50,7 @@ await fs.writeFile(path.join(DIST, 'index.html'), html);
 // The Top Plays and My Rink pages, stamped the same way.
 for (const [dir, files] of [['plays', ['plays.js', 'plays.css']], ['my-rink', ['my-rink.js', 'my-rink.css']]]) {
   let page = await fs.readFile(path.join('public', dir, 'index.html'), 'utf8');
-  for (const [ref, file] of [...files.map(f => [f, `${dir}/${f}`]), ['../styles.css', 'styles.css'], ['../logo.svg', 'logo.svg']]) {
+  for (const [ref, file] of [...files.map(f => [f, `${dir}/${f}`]), ['../styles.css', 'styles.css'], ['../logo.svg', 'logo.svg'], ['../posted-live.js', 'posted-live.js']]) {
     page = page.replaceAll(`"${ref}"`, `"${ref}?v=${await stamp(file)}"`);
   }
   await fs.writeFile(path.join(DIST, dir, 'index.html'), page);

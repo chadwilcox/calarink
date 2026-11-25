@@ -2,8 +2,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { RINKS, STATES } from './rinks.js';
-import { categorize, isCancelled, CATEGORY_LIST } from './categorize.js';
-import { zonedDate, zonedToday, DAY_MS, DEFAULT_TZ } from './time.js';
+import { CATEGORY_LIST } from './categorize.js';
+import { rinkTz, toSession, windowRange } from './session.js';
 import { fetchIcs } from './sources/ics.js';
 import { fetchFinnly } from './sources/finnly.js';
 import { fetchPageText } from './sources/pageText.js';
@@ -15,15 +15,14 @@ import { fetchMontrealArena } from './sources/montrealArena.js';
 import { fetchActiveNet } from './sources/activenet.js';
 import { fetchMyRec, fetchMyRecProgram } from './sources/myrec.js';
 import { readManual } from './manual.js';
-import { expandPosted, fetchPosted, isOff } from './posted.js';
+import { fetchPosted } from './posted.js';
+import { expandPosted, isOff } from './expand.js';
 
 const ADAPTERS = { ics: fetchIcs, finnly: fetchFinnly, pageText: fetchPageText, daysmart: fetchDaySmart, courtreserve: fetchCourtReserve,
   torontoDropIn: fetchTorontoDropIn, classList: fetchClassList, montrealArena: fetchMontrealArena, activenet: fetchActiveNet,
   myrec: fetchMyRec, myrecProgram: fetchMyRecProgram,
 };
-const TZ_BY_STATE = Object.fromEntries(STATES.map(s => [s.code, s.tz || DEFAULT_TZ]));
 const CACHE_TTL_MS = 30 * 60 * 1000;
-const WINDOW_DAYS = 120;
 const CACHE_FILE = path.resolve('data', 'cache.json');
 
 // sourceKey -> { fetchedAt, sessions?, error? }
@@ -40,57 +39,6 @@ export async function loadCache() {
 async function saveCache() {
   await fs.mkdir(path.dirname(CACHE_FILE), { recursive: true });
   await fs.writeFile(CACHE_FILE, JSON.stringify(Object.fromEntries(cache)));
-}
-
-// Rinks often stamp the season on every session ("Public Skating Sept-Dec 2026 - Weekend",
-// "Open Skate Oct. 2026", "Hockey 101 Fall '26"); the date is already on the listing.
-const MON = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?';
-const YEAR = "(?:'\\d{2}|20\\d{2})\\b"; // '26 or 2026 — never a bare day number like "Oct. 12"
-const SEASON_RE = new RegExp(`\\s*\\b(?:${MON}\\s*[-–/]\\s*${MON}\\s*${YEAR}|${MON}\\s+${YEAR}|(?:fall|winter|spring|summer)\\s*${YEAR}(?:\\s*[-–/]\\s*${YEAR})?)`, 'gi');
-function tidyTitle(t) {
-  return String(t || '')
-    .replace(SEASON_RE, '')
-    .replace(/^(.+?)\s+\1$/i, '$1')          // "Open Skate Open Skate"
-    .replace(/\s*[-–—|]\s*$/, '')          // dangling separator left behind
-    .replace(/\s*[-–—]\s*[-–—]\s*/g, ' — ')
-    .replace(/\s{2,}/g, ' ')
-    .trim();
-}
-
-// A session's id is its address in a shared link (calarink.com/maine/?event=<id>), so it must
-// stay the same while the session does: the rink, the start time and a short hash of the title
-// ("usm-gorham.20261003T1700.k3f9"), never its position in the rink's calendar, which shifts
-// whenever the rink adds or removes something.
-function sessionId(rinkId, start, title) {
-  let h = 2166136261; // FNV-1a
-  for (const c of title.toLowerCase()) h = Math.imul(h ^ c.codePointAt(0), 16777619);
-  return `${rinkId}.${start.toISOString().slice(0, 16).replace(/[-:]/g, '')}.${(h >>> 0).toString(36).slice(0, 4)}`;
-}
-
-// From the start of today in the rink's time zone. `tz` goes to the adapters too, for
-// schedules that give local times with no zone.
-function windowRange(tz) {
-  const t = zonedToday(tz);
-  const from = zonedDate(tz, t.y, t.m, t.d);
-  return { from, to: new Date(from.getTime() + WINDOW_DAYS * DAY_MS), tz };
-}
-
-const rinkTz = rink => rink.tz || TZ_BY_STATE[rink.state] || DEFAULT_TZ;
-
-function toSession(rink, s) {
-  const text = s.categoryText ?? `${s.title} ${s.description || ''}`;
-  return {
-    id: sessionId(rink.id, s.start, tidyTitle(s.title) || 'Ice time'),
-    rinkId: rink.id,
-    title: tidyTitle(s.title) || 'Ice time',
-    description: s.description || '',
-    category: categorize(text),
-    cancelled: isCancelled(`${s.title} ${s.description || ''}`),
-    start: s.start.toISOString(),
-    end: s.end.toISOString(),
-    fromText: !!s.fromText,
-    recurring: !!s.recurring,
-  };
 }
 
 // Hand-entered times (manual/<rink id>.csv) join the rink's pulled ones. A pulled session the file
@@ -110,7 +58,7 @@ function mergePosted(rink, sessions, posted) {
   if (!posted) return sessions;
   const tz = rinkTz(rink);
   const { sessions: extra, off } = expandPosted(posted, tz, windowRange(tz));
-  const mark = s => (isOff(Date.parse(s.start), s.postedAt, off) ? { ...s, cancelled: true } : s);
+  const mark = s => (isOff(Date.parse(s.start), s.postedAt, off) && !s.cancelled ? { ...s, cancelled: true, offPosted: true } : s);
   const base = sessions.map(mark);
   const added = extra.map(s => mark({ ...toSession(rink, s), posted: true, ...(s.postedAt && { postedAt: s.postedAt }) }))
     .filter(m => !base.some(p => !p.cancelled && p.category === m.category && Math.abs(Date.parse(p.start) - Date.parse(m.start)) <= 15 * 60 * 1000));

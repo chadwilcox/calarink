@@ -18,7 +18,7 @@ self.addEventListener('install', event => {
     if (!res.ok) return;
     const html = await res.clone().text();
     await cache.put(ROOT, res);
-    const files = [...html.matchAll(/(?:href|src)="((?:app\.js|styles\.css|logo\.svg)(?:\?v=\w+)?)"/g)].map(m => new URL(m[1], ROOT).href);
+    const files = [...html.matchAll(/(?:href|src)="((?:app\.js|posted-live\.js|styles\.css|logo\.svg)(?:\?v=\w+)?)"/g)].map(m => new URL(m[1], ROOT).href);
     await Promise.all([...new Set([...files, `${ROOT}manifest.webmanifest`, `${ROOT}icons/icon-192.png`])].map(u => cache.add(u).catch(() => {})));
   })());
   self.skipWaiting();

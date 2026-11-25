@@ -1,8 +1,13 @@
 // My Rink API (calarink.com/plays-api/rinks/*): rink staff claim their rink, the moderator approves
 // them, and they post times. The site's build reads /rinks/schedule; pages also read /rinks/live so
-// cancellations show right away. Claim details (name, role, phone) are only for the moderator.
+// changes show right away. Claim details (name, role, phone) are only for the moderator.
 import { DAY, bad, body, clean, currentUser, isAdmin, json, needAdmin, needUser, now, random, saltedIp, sendMail, tellAdmin } from './lib.js';
 import { addDays } from './dates.js';
+import { RINKS } from '../../src/rinks.js';
+import { rinkTz, toSession, windowRange } from '../../src/session.js';
+import { expandPosted, isOff } from '../../src/expand.js';
+
+const RINK_BY_ID = new Map(RINKS.map(r => [r.id, r]));
 
 const MAX_ENTRIES = 300, MAX_CLAIMS = 3;
 export const REMIND_DAYS = 14, EXPIRE_DAYS = 30;
@@ -65,7 +70,7 @@ const entryOf = r => ({ id: r.id, at: r.created_at, ...JSON.parse(r.data) });
 const MANAGED = "EXISTS (SELECT 1 FROM rink_managers m JOIN users u ON u.id = m.user_id WHERE m.rink_id = e.rink_id AND m.status = 'approved' AND u.blocked = 0)";
 const recent = () => new Date((now() - 2 * DAY) * 1000).toISOString().slice(0, 10);
 
-async function schedule(env) {
+async function posted(env) {
   const { results } = await env.DB.prepare(`SELECT e.*, s.updated_at, s.confirmed_at FROM rink_entries e JOIN rink_status s ON s.rink_id = e.rink_id WHERE e.ends >= ? AND ${MANAGED} ORDER BY e.created_at`).bind(recent()).all();
   const rinks = {};
   for (const r of results) {
@@ -73,17 +78,30 @@ async function schedule(env) {
     const k = rinks[r.rink_id] ??= { updated: r.updated_at, stale: age > REMIND_DAYS * DAY, expired: age > EXPIRE_DAYS * DAY, entries: [] };
     k.entries.push(entryOf(r));
   }
-  return json({ rinks }, 200, { 'Cache-Control': 'public, max-age=60' });
+  return rinks;
 }
-
-async function live(env) {
-  const { results } = await env.DB.prepare(`SELECT e.* FROM rink_entries e WHERE e.ends >= ? AND json_extract(e.data, '$.kind') IN ('cancel', 'closed') AND ${MANAGED}`).bind(recent()).all();
-  const rinks = {};
-  for (const r of results) {
-    const { kind, date, start, until, at } = entryOf(r);
-    (rinks[r.rink_id] ??= []).push(kind === 'cancel' ? { date, start, at } : { date, until, at });
+async function schedule(env) { // for the build
+  return json({ rinks: await posted(env) }, 200, { 'Cache-Control': 'public, max-age=60' });
+}
+let liveCache = { at: 0, body: '' };
+async function live(env) { // for visitors: ready-made sessions, so posted times show before the next build
+  if (now() - liveCache.at > 20) {
+    const rinks = {};
+    for (const [id, p] of Object.entries(await posted(env))) {
+      const rink = RINK_BY_ID.get(id);
+      if (!rink) continue;
+      const tz = rinkTz(rink), { sessions, off } = expandPosted(p, tz, windowRange(tz));
+      rinks[id] = {
+        updated: p.updated, stale: p.stale, off,
+        sessions: sessions.map(s => {
+          const x = { ...toSession(rink, s), posted: true, ...(s.postedAt && { postedAt: s.postedAt }) };
+          return isOff(s.start.getTime(), s.postedAt, off) ? { ...x, cancelled: true, offPosted: true } : x;
+        }),
+      };
+    }
+    liveCache = { at: now(), body: JSON.stringify({ rinks }) };
   }
-  return json({ rinks }, 200, { 'Cache-Control': 'public, max-age=60' });
+  return new Response(liveCache.body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=20' } });
 }
 
 async function report(req, env, rink, ctx, url) {
@@ -170,7 +188,7 @@ async function manage(req, env, rink) {
     confirmed: status.results[0]?.confirmed_at || null,
   });
 }
-const touch = (env, rink) => env.DB.prepare('INSERT INTO rink_status (rink_id, updated_at, confirmed_at) VALUES (?1, ?2, ?2) ON CONFLICT (rink_id) DO UPDATE SET updated_at = ?2, confirmed_at = ?2').bind(rink, now());
+const touch = (env, rink) => (liveCache.at = 0, env.DB.prepare('INSERT INTO rink_status (rink_id, updated_at, confirmed_at) VALUES (?1, ?2, ?2) ON CONFLICT (rink_id) DO UPDATE SET updated_at = ?2, confirmed_at = ?2').bind(rink, now()));
 const put = (env, rink, e) => {
   const { id, at, ...data } = e;
   return env.DB.prepare('INSERT INTO rink_entries (id, rink_id, data, ends, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, rink, JSON.stringify(data), data.until || data.date, at);

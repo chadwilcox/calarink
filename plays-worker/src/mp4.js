@@ -29,6 +29,12 @@ function lengthOf(v, b) {
   return { scale, seconds: ticks / scale };
 }
 
+// The same file's length in seconds, once it has passed checkMp4.
+export function mp4Seconds(buffer) {
+  const v = new DataView(buffer);
+  return lengthOf(v, find(v, { start: 0, end: v.byteLength }, 'moov', 'mvhd')).seconds;
+}
+
 export function checkMp4(buffer) {
   try {
     const v = new DataView(buffer);

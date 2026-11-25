@@ -99,7 +99,7 @@ async function load(refresh = false) {
     applyOff();
     buildStaticControls();
     render();
-    loadOff();
+    await loadOff();
     // A shared session link (calarink.com/maine/?event=<id>) opens that session, once.
     if (!linkOpened) {
       linkOpened = true;
@@ -126,31 +126,18 @@ async function loadStateSessions() {
   if (currentState().slug === slug) data.sessions = sessions; // ignore a reply for a state the visitor already left
 }
 
-// Cancellations rink staff just posted (My Rink), ahead of the next scheduled build.
-let offTimes = {};
-const offFmts = new Map();
-function localStamp(iso, tz) { // "2026-11-25T18:00" on the rink's clock
-  if (!offFmts.has(tz)) offFmts.set(tz, new Intl.DateTimeFormat('en-CA', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }));
-  const p = Object.fromEntries(offFmts.get(tz).formatToParts(new Date(iso)).map(x => [x.type, x.value]));
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
-}
+// What rink staff posted since the last build (My Rink), laid over the schedules.
+let postedLive = null;
 function applyOff() {
-  if (!data?.sessions) return;
-  for (const s of data.sessions) {
-    const off = offTimes[s.rinkId];
-    if (!off || s.cancelled) continue;
-    const rink = rinkById(s.rinkId);
-    const [date, time] = localStamp(s.start, rink.tz || stateOfRink(rink).tz || DEFAULT_TZ).split('T');
-    if (off.some(o => (o.start ? o.date === date && o.start === time : date >= o.date && date <= o.until) && !(s.postedAt && s.postedAt >= o.at))) s.cancelled = true;
-  }
+  if (data?.sessions && window.mergePostedLive) data.sessions = window.mergePostedLive(data, data.sessions, postedLive);
 }
 async function loadOff() {
   try {
-    const res = await fetch('/plays-api/rinks/live');
+    const res = await fetch('/plays-api/rinks/live', { signal: AbortSignal.timeout(5000) });
     if (!res.ok) return;
-    offTimes = (await res.json()).rinks || {};
+    postedLive = (await res.json()).rinks;
   } catch { return; } // offline: the schedules still show
-  if (Object.keys(offTimes).length) { applyOff(); render(); }
+  applyOff(); render();
 }
 
 // ---------- US state ----------

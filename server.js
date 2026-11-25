@@ -32,7 +32,7 @@ const server = http.createServer(async (req, res) => {
       return req.pipe(http.request(PLAYS_API + req.url, { method: req.method, headers: req.headers }, r => {
         res.writeHead(r.statusCode, r.headers);
         r.pipe(res);
-      }).on('error', () => send(res, 502, '{"error":"The Top Plays Worker is not running"}')));
+      }).on('error', () => res.headersSent ? res.destroy() : send(res, 502, '{"error":"The Top Plays Worker is not running"}')));
     }
     if (req.method !== 'GET') return send(res, 405, '{"error":"method not allowed"}');
 
