@@ -45,7 +45,7 @@ const whereOf = p => [rinkName(p.rink), stateName(p.state)].filter(Boolean).join
 const monthLabel = m => new Date(`${m}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 // Same list as plays-worker/src/levels.js. Canada names its age groups differently.
 const LEVELS_US = ['6U', '8U', '10U', '12U', '14U', '16U', '18U'], LEVELS_CA = ['U7', 'U9', 'U11', 'U13', 'U15', 'U18'];
-const LEVELS_BOTH = ['High School', 'Junior', 'College', 'Adult', 'Other'];
+const LEVELS_BOTH = ['High School', 'Junior', 'College', 'Beer League A', 'Beer League B', 'Beer League C', 'Adult', 'Other'];
 const LEVELS = [...LEVELS_US, ...LEVELS_CA, ...LEVELS_BOTH];
 const votesText = n => `${n} vote${n === 1 ? '' : 's'}`;
 
