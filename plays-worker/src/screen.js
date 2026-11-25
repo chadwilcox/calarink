@@ -1,6 +1,6 @@
 // A first look at each uploaded clip, for the moderator: stills taken from the stored video (never
-// the uploader's own preview picture) go to a vision model on Cloudflare, which doesn't keep or
-// train on them. It only advises: nothing is published, hidden or deleted on its word.
+// the uploader's own preview picture) go to a vision model on Cloudflare, which says it
+// doesn't train on them. It only advises: nothing is published, hidden or deleted on its word.
 import { now } from './lib.js';
 
 const MODEL = '@cf/google/gemma-4-26b-a4b-it';
